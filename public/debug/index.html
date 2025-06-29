@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FireChat - Coze Chat SDK 示例</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            width: 90%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        .config-section {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .config-section h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .chat-container {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .token-info {
+            background: #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            font-family: monospace;
+            font-size: 12px;
+            word-break: break-all;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔥 FireChat</h1>
+            <p>基于 Coze Chat SDK 的智能客服系统</p>
+        </div>
+
+        <div id="status" class="status hidden"></div>
+
+        <div class="config-section">
+            <h3>⚙️ 配置信息</h3>
+            <div class="form-group">
+                <label for="botId">Bot ID:</label>
+                <input type="text" id="botId" placeholder="请输入您的 Bot ID">
+            </div>
+            <div class="form-group">
+                <label for="sessionName">会话名称 (可选):</label>
+                <input type="text" id="sessionName" placeholder="用于会话隔离，如用户ID">
+            </div>
+            <div class="form-group">
+                <label for="deviceId">设备ID (可选):</label>
+                <input type="text" id="deviceId" placeholder="设备唯一标识">
+            </div>
+        </div>
+
+        <div class="config-section">
+            <h3>🔧 操作</h3>
+            <button class="btn" onclick="getToken()">获取访问令牌</button>
+            <button class="btn" onclick="initChatSDK()" id="initBtn" disabled>初始化 Chat SDK</button>
+            <button class="btn" onclick="testConnection()">测试连接</button>
+            <button class="btn" onclick="clearCache()">清除缓存</button>
+        </div>
+
+        <div id="tokenInfo" class="token-info hidden">
+            <strong>访问令牌信息:</strong><br>
+            <div id="tokenDetails"></div>
+        </div>
+
+        <div class="chat-container">
+            <div id="chatStatus" class="hidden">
+                <p>✅ Chat SDK 已初始化，聊天窗口已准备就绪</p>
+                <p>点击右下角的聊天图标开始对话</p>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Powered by Coze Chat SDK | FireChat Team</p>
+        </div>
+    </div>
+
+    <!-- Coze Chat SDK -->
+    <script src="https://lf-cdn.coze.cn/obj/unpkg/flow-platform/chat-app-sdk/1.1.0-beta.0/libs/cn/index.js"></script>
+
+    <script>
+        let currentToken = null;
+        let chatClient = null;
+
+        // 显示状态消息
+        function showStatus(message, type = 'info') {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+            statusEl.classList.remove('hidden');
+            
+            if (type === 'success' || type === 'error') {
+                setTimeout(() => {
+                    statusEl.classList.add('hidden');
+                }, 5000);
+            }
+        }
+
+        // 获取访问令牌
+        async function getToken() {
+            const sessionName = document.getElementById('sessionName').value;
+            const deviceId = document.getElementById('deviceId').value;
+
+            showStatus('正在获取访问令牌...', 'info');
+
+            try {
+                const response = await fetch('/api/auth/token', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        sessionName: sessionName || undefined,
+                        deviceId: deviceId || undefined
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    currentToken = result.data.access_token;
+                    showStatus(`访问令牌获取成功 ${result.cached ? '(使用缓存)' : '(新生成)'}`, 'success');
+                    
+                    // 显示令牌信息
+                    const tokenInfo = document.getElementById('tokenInfo');
+                    const tokenDetails = document.getElementById('tokenDetails');
+                    tokenDetails.innerHTML = `
+                        <strong>Token:</strong> ${result.data.access_token.substring(0, 20)}...<br>
+                        <strong>类型:</strong> ${result.data.token_type}<br>
+                        <strong>有效期:</strong> ${result.data.expires_in} 秒<br>
+                        <strong>生成时间:</strong> ${new Date(result.data.generated_at).toLocaleString()}<br>
+                        ${result.data.session_name ? `<strong>会话名称:</strong> ${result.data.session_name}<br>` : ''}
+                    `;
+                    tokenInfo.classList.remove('hidden');
+                    
+                    // 启用初始化按钮
+                    document.getElementById('initBtn').disabled = false;
+                } else {
+                    showStatus(`获取令牌失败: ${result.error.message}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`请求失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 初始化 Chat SDK
+        function initChatSDK() {
+            const botId = document.getElementById('botId').value;
+            
+            if (!botId) {
+                showStatus('请先输入 Bot ID', 'error');
+                return;
+            }
+
+            if (!currentToken) {
+                showStatus('请先获取访问令牌', 'error');
+                return;
+            }
+
+            try {
+                // 如果已经存在聊天客户端，先销毁
+                if (chatClient) {
+                    chatClient.destroy();
+                }
+
+                // 初始化 Chat SDK
+                chatClient = new CozeWebSDK.WebChatClient({
+                    config: {
+                        type: 'bot',
+                        botId: botId,
+                        isIframe: false
+                    },
+                    auth: {
+                        type: 'token',
+                        token: currentToken,
+                        onRefreshToken: async () => {
+                            // 当token过期时自动刷新
+                            const sessionName = document.getElementById('sessionName').value;
+                            const deviceId = document.getElementById('deviceId').value;
+                            
+                            try {
+                                const response = await fetch('/api/auth/token', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json'
+                                    },
+                                    body: JSON.stringify({
+                                        sessionName: sessionName || undefined,
+                                        deviceId: deviceId || undefined,
+                                        forceRefresh: true
+                                    })
+                                });
+                                
+                                const result = await response.json();
+                                if (result.success) {
+                                    currentToken = result.data.access_token;
+                                    return result.data.access_token;
+                                }
+                            } catch (error) {
+                                console.error('刷新token失败:', error);
+                            }
+                            return currentToken;
+                        }
+                    },
+                    ui: {
+                        header: {
+                            isShow: true
+                        }
+                    },
+                    chatBot: {
+                        title: 'FireChat 智能助手',
+                        uploadable: true,
+                        width: 390,
+                        onShow: () => {
+                            console.log('聊天窗口已显示');
+                        },
+                        onHide: () => {
+                            console.log('聊天窗口已隐藏');
+                        }
+                    },
+                    footer: {
+                        isShow: true,
+                        expressionText: '由{{name}}提供。内容均由 AI 生成，仅供参考',
+                        linkvars: {
+                            name: {
+                                text: 'FireChat',
+                                link: 'https://github.com/firechat'
+                            }
+                        }
+                    }
+                });
+
+                showStatus('Chat SDK 初始化成功！', 'success');
+                document.getElementById('chatStatus').classList.remove('hidden');
+                
+            } catch (error) {
+                showStatus(`Chat SDK 初始化失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 测试连接
+        async function testConnection() {
+            showStatus('正在测试连接...', 'info');
+            
+            try {
+                const response = await fetch('/api/status');
+                const result = await response.json();
+                
+                if (result.success) {
+                    const data = result.data;
+                    showStatus(`连接测试成功 - Coze连接: ${data.coze_connection ? '✅' : '❌'}, 缓存大小: ${data.cache_size}`, 'success');
+                } else {
+                    showStatus('连接测试失败', 'error');
+                }
+            } catch (error) {
+                showStatus(`连接测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 清除缓存
+        async function clearCache() {
+            try {
+                const response = await fetch('/api/auth/cache', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({})
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showStatus(`缓存清除成功，清除了 ${result.data.cleared} 个缓存项`, 'success');
+                } else {
+                    showStatus('缓存清除失败', 'error');
+                }
+            } catch (error) {
+                showStatus(`缓存清除失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 页面加载时自动测试连接
+        window.addEventListener('load', () => {
+            testConnection();
+        });
+    </script>
+</body>
+</html>
