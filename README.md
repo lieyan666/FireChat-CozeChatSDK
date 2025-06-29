@@ -1,39 +1,24 @@
-# FireChat - Coze聊天SDK演示项目
+# FireChat - Coze Chat SDK 后端服务
 
-一个基于Node.js Express框架的前后端演示项目，集成了JWT身份验证和Coze聊天SDK，展示了如何构建一个安全的AI聊天应用。
+基于 Coze OAuth JWT 鉴权的 Chat SDK 后端服务，实现网页智能客服功能。
 
-## ✨ 功能特性
+## 🚀 功能特性
 
-- 🔐 **JWT身份验证** - 安全的用户注册和登录系统
-- 🤖 **Coze AI集成** - 集成Coze聊天SDK实现智能对话
-- 🎨 **现代化UI** - 响应式设计，支持移动端
-- 🛡️ **安全防护** - 速率限制、CORS配置、密码加密
-- 📱 **实时聊天** - 流畅的聊天体验
-- 🚀 **易于部署** - 简单的配置和部署流程
-
-## 🏗️ 技术栈
-
-### 后端
-- **Node.js** - JavaScript运行时
-- **Express.js** - Web应用框架
-- **JWT** - 身份验证令牌
-- **bcryptjs** - 密码加密
-- **@coze/api** - Coze官方SDK
-- **express-rate-limit** - 速率限制
-- **cors** - 跨域资源共享
-
-### 前端
-- **原生JavaScript** - 无框架依赖
-- **现代CSS** - 渐变、动画、响应式设计
-- **Fetch API** - HTTP请求
+- **OAuth JWT 鉴权**: 基于 Coze 官方 OAuth JWT 规范实现安全鉴权
+- **访问令牌管理**: 自动生成和管理 OAuth 访问令牌
+- **会话隔离**: 支持多用户会话隔离，每个用户独立的对话历史
+- **设备管理**: 支持 IoT 设备和自定义消费者标识
+- **令牌缓存**: 内存缓存机制，避免频繁请求 API
+- **前端集成**: 提供完整的前端示例，快速集成 Chat SDK
+- **RESTful API**: 标准的 REST API 接口设计
 
 ## 📋 前置要求
 
-- Node.js 16.0 或更高版本
-- npm 或 yarn 包管理器
-- Coze平台账户和API访问权限
+1. **Node.js**: 版本 >= 14.0.0
+2. **Coze 账号**: 需要在 Coze 平台创建 OAuth 应用
+3. **Bot**: 需要创建并发布为 Chat SDK 的智能体
 
-## 🚀 快速开始
+## 🛠️ 安装配置
 
 ### 1. 克隆项目
 
@@ -48,249 +33,310 @@ cd FireChat-CozeChatSDK
 npm install
 ```
 
-### 3. 配置环境变量
+### 3. 创建 OAuth 应用
 
-复制环境变量模板文件：
+1. 登录 [Coze 平台](https://www.coze.cn)
+2. 进入 **授权 > OAuth 应用** 页面
+3. 点击 **创建新应用**
+4. 配置应用信息：
+   - **应用类型**: 普通
+   - **客户端类型**: 服务类应用
+   - **应用名称**: 自定义名称
+   - **描述**: 应用描述
+5. 生成公钥和私钥：
+   - 点击 **创建 Key**
+   - 下载 `private_key.pem` 文件到项目根目录
+   - 复制公钥指纹
+6. 配置权限并完成授权
+
+### 4. 配置环境变量
+
+复制环境变量模板：
 
 ```bash
 cp .env.example .env
 ```
 
-编辑 `.env` 文件，填入你的配置：
+编辑 `.env` 文件：
 
 ```env
-# JWT配置
-JWT_SECRET=your_super_secret_jwt_key_here_replace_with_random_64_char_string
-JWT_EXPIRES_IN=24h
+# Coze OAuth 应用配置
+COZE_APP_ID=your_oauth_app_id
+COZE_PRIVATE_KEY_PATH=./private_key.pem
+COZE_PUBLIC_KEY_FINGERPRINT=your_public_key_fingerprint
+COZE_API_ENDPOINT=api.coze.cn
 
 # 服务器配置
 PORT=3000
-NODE_ENV=development
-
-# Coze API配置
-COZE_API_TOKEN=your_coze_personal_access_token_here
-COZE_BOT_ID=your_coze_bot_id_here
-COZE_BASE_URL=https://api.coze.com
+JWT_EXPIRY_HOURS=1
 
 # CORS配置
-CLIENT_URL=http://localhost:3001
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8080
 
-# 速率限制
-RATE_LIMIT_WINDOW_MS=900000
-RATE_LIMIT_MAX_REQUESTS=100
+# Bot配置
+DEFAULT_BOT_ID=your_bot_id
 ```
 
-### 4. 获取Coze API凭证
+### 5. 创建并发布 Bot
 
-#### 获取Personal Access Token (PAT)
+1. 在 Coze 平台创建智能体
+2. 配置智能体的知识库和能力
+3. 在编排页面点击 **发布**
+4. 选择 **Chat SDK** 渠道并发布
+5. 等待审核通过
+6. 复制 Bot ID 到环境变量
 
-1. 访问 [Coze开放平台](https://www.coze.com/open/oauth/pats)
-2. 登录你的Coze账户
-3. 创建新的Personal Access Token
-4. 复制生成的token到 `.env` 文件中的 `COZE_API_TOKEN`
+## 🚀 启动服务
 
-#### 获取Bot ID
+### 开发模式
 
-1. 在Coze平台创建或选择一个Bot
-2. 在Bot设置页面找到Bot ID
-3. 将Bot ID复制到 `.env` 文件中的 `COZE_BOT_ID`
-
-### 5. 生成JWT密钥
-
-使用Node.js生成一个安全的JWT密钥：
-
-```bash
-node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
-```
-
-将生成的密钥复制到 `.env` 文件中的 `JWT_SECRET`。
-
-### 6. 启动应用
-
-开发模式：
 ```bash
 npm run dev
 ```
 
-生产模式：
+### 生产模式
+
 ```bash
 npm start
 ```
 
-### 7. 访问应用
+服务启动后访问: http://localhost:3000
 
-打开浏览器访问：http://localhost:3000
+## 📚 API 文档
 
-## 📖 API文档
+### 1. 获取访问令牌
 
-### 认证接口
+**POST** `/api/auth/token`
 
-#### 用户注册
-```http
-POST /api/auth/register
-Content-Type: application/json
-
+请求体：
+```json
 {
-  "username": "demo",
-  "email": "demo@example.com",
-  "password": "password123"
+  "sessionName": "user_123",     // 可选，用于会话隔离
+  "deviceId": "device_456",      // 可选，设备ID
+  "customConsumer": "app_user",  // 可选，自定义消费者ID
+  "forceRefresh": false          // 可选，强制刷新token
 }
 ```
 
-#### 用户登录
-```http
-POST /api/auth/login
-Content-Type: application/json
-
+响应：
+```json
 {
-  "username": "demo",
-  "password": "password123"
+  "success": true,
+  "data": {
+    "access_token": "oauth_access_token",
+    "token_type": "Bearer",
+    "expires_in": 3600,
+    "jwt": "jwt_token",
+    "session_name": "user_123",
+    "generated_at": "2024-01-01T00:00:00.000Z"
+  },
+  "cached": false
 }
 ```
 
-#### 获取用户信息
-```http
-GET /api/auth/profile
-Authorization: Bearer <jwt_token>
-```
+### 2. 验证访问令牌
 
-### 聊天接口
+**POST** `/api/auth/validate`
 
-#### 发送消息
-```http
-POST /api/chat
-Content-Type: application/json
-Authorization: Bearer <jwt_token>
-
+请求体：
+```json
 {
-  "message": "你好，请介绍一下自己"
+  "access_token": "oauth_access_token"
 }
 ```
 
-### 系统接口
+### 3. 获取 Bot 信息
 
-#### 健康检查
-```http
-GET /api/health
+**GET** `/api/bot/:botId`
+
+请求头：
+```
+Authorization: Bearer oauth_access_token
 ```
 
-## 🔧 配置说明
+### 4. 清除缓存
 
-### 环境变量详解
+**DELETE** `/api/auth/cache`
 
-| 变量名 | 描述 | 默认值 | 必需 |
-|--------|------|--------|------|
-| `JWT_SECRET` | JWT签名密钥 | - | ✅ |
-| `JWT_EXPIRES_IN` | JWT过期时间 | 24h | ❌ |
-| `PORT` | 服务器端口 | 3000 | ❌ |
-| `NODE_ENV` | 运行环境 | development | ❌ |
-| `COZE_API_TOKEN` | Coze API令牌 | - | ✅ |
-| `COZE_BOT_ID` | Coze机器人ID | - | ✅ |
-| `COZE_BASE_URL` | Coze API基础URL | https://api.coze.com | ❌ |
-| `CLIENT_URL` | 前端URL（CORS） | http://localhost:3001 | ❌ |
-| `RATE_LIMIT_WINDOW_MS` | 速率限制时间窗口 | 900000 | ❌ |
-| `RATE_LIMIT_MAX_REQUESTS` | 速率限制最大请求数 | 100 | ❌ |
-
-### 默认用户账户
-
-为了方便测试，系统预置了一个演示账户：
-
-- **用户名**: `demo`
-- **邮箱**: `demo@example.com`
-- **密码**: `password`
-
-## 🛡️ 安全特性
-
-- **密码加密**: 使用bcrypt进行密码哈希
-- **JWT令牌**: 安全的身份验证机制
-- **速率限制**: 防止API滥用
-- **CORS配置**: 控制跨域访问
-- **输入验证**: 防止恶意输入
-- **错误处理**: 安全的错误信息返回
-
-## 📁 项目结构
-
-```
-FireChat-CozeChatSDK/
-├── public/
-│   └── index.html          # 前端单页应用
-├── server.js               # 主服务器文件
-├── package.json            # 项目依赖配置
-├── .env.example           # 环境变量模板
-├── .gitignore             # Git忽略文件
-├── LICENSE                # 开源许可证
-└── README.md              # 项目文档
+请求体（可选）：
+```json
+{
+  "sessionName": "user_123",  // 清除特定会话缓存
+  "deviceId": "device_456"    // 清除特定设备缓存
+}
 ```
 
-## 🚀 部署指南
+### 5. 服务状态
 
-### 本地部署
+**GET** `/api/status`
 
-1. 确保所有环境变量正确配置
-2. 运行 `npm install` 安装依赖
-3. 运行 `npm start` 启动服务
+### 6. 健康检查
 
-### 云平台部署
+**GET** `/health`
 
-#### Vercel部署
+## 🌐 前端集成
 
-1. 在Vercel中导入项目
-2. 配置环境变量
-3. 部署应用
+### 基础集成
 
-#### Heroku部署
+```html
+<!-- 引入 Coze Chat SDK -->
+<script src="https://lf-cdn.coze.cn/obj/unpkg/flow-platform/chat-app-sdk/1.1.0-beta.0/libs/cn/index.js"></script>
 
-1. 创建Heroku应用
-2. 设置环境变量
-3. 推送代码到Heroku
+<script>
+// 1. 获取访问令牌
+async function getAccessToken() {
+  const response = await fetch('/api/auth/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sessionName: 'user_123'  // 用户唯一标识
+    })
+  });
+  
+  const result = await response.json();
+  return result.data.access_token;
+}
 
-## 🔍 故障排除
+// 2. 初始化 Chat SDK
+async function initChatSDK() {
+  const token = await getAccessToken();
+  
+  const chatClient = new CozeWebSDK.WebChatClient({
+    config: {
+      type: 'bot',
+      botId: 'your_bot_id'
+    },
+    auth: {
+      type: 'token',
+      token: token,
+      onRefreshToken: getAccessToken  // 自动刷新token
+    },
+    chatBot: {
+      title: '智能助手',
+      uploadable: true
+    }
+  });
+}
+
+// 3. 启动
+initChatSDK();
+</script>
+```
+
+### 会话隔离示例
+
+```javascript
+// 为不同用户创建独立会话
+function createUserSession(userId) {
+  return fetch('/api/auth/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sessionName: `user_${userId}`,
+      deviceId: `web_${Date.now()}`
+    })
+  });
+}
+```
+
+## 🔧 高级配置
+
+### JWT 自定义配置
+
+```javascript
+// utils/jwtUtils.js
+const jwtUtils = new JWTUtils({
+  appId: 'your_app_id',
+  privateKeyPath: './private_key.pem',
+  publicKeyFingerprint: 'your_fingerprint',
+  apiEndpoint: 'api.coze.cn',
+  expiryHours: 2  // 自定义过期时间
+});
+```
+
+### 缓存策略
+
+```javascript
+// 生产环境建议使用 Redis
+const redis = require('redis');
+const client = redis.createClient();
+
+// 替换内存缓存
+const tokenCache = {
+  set: (key, value) => client.setex(key, 3600, JSON.stringify(value)),
+  get: async (key) => {
+    const value = await client.get(key);
+    return value ? JSON.parse(value) : null;
+  },
+  delete: (key) => client.del(key)
+};
+```
+
+## 🔒 安全注意事项
+
+1. **私钥安全**: 确保 `private_key.pem` 文件安全存储，不要提交到版本控制
+2. **环境变量**: 生产环境使用环境变量管理敏感信息
+3. **HTTPS**: 生产环境必须使用 HTTPS
+4. **CORS**: 正确配置 CORS 允许的域名
+5. **令牌过期**: 合理设置 JWT 过期时间
+6. **会话隔离**: 使用 sessionName 确保用户数据隔离
+
+## 🐛 故障排除
 
 ### 常见问题
 
-#### 1. Coze API调用失败
+1. **JWT 生成失败**
+   - 检查私钥文件路径和格式
+   - 确认公钥指纹正确
+   - 验证应用 ID 配置
 
-**问题**: 聊天功能无法正常工作
+2. **OAuth 令牌获取失败**
+   - 确认 OAuth 应用已授权
+   - 检查 API 端点配置
+   - 验证网络连接
 
-**解决方案**:
-- 检查 `COZE_API_TOKEN` 是否正确
-- 确认 `COZE_BOT_ID` 是否有效
-- 验证Coze账户是否有API访问权限
-- 检查网络连接
+3. **Chat SDK 初始化失败**
+   - 确认 Bot 已发布为 Chat SDK
+   - 检查 Bot ID 正确性
+   - 验证访问令牌有效性
 
-#### 2. JWT验证失败
-
-**问题**: 登录后无法访问受保护的路由
-
-**解决方案**:
-- 确认 `JWT_SECRET` 已正确设置
-- 检查token是否在请求头中正确传递
-- 验证token是否已过期
-
-#### 3. CORS错误
-
-**问题**: 前端无法访问后端API
-
-**解决方案**:
-- 检查 `CLIENT_URL` 配置
-- 确认CORS中间件正确配置
-- 验证请求头设置
+4. **会话隔离不生效**
+   - 确认 sessionName 参数传递
+   - 检查 JWT payload 中的 session_name
+   - 验证前端用户标识一致性
 
 ### 调试模式
 
-启用详细日志：
-
 ```bash
+# 启用详细日志
 NODE_ENV=development npm run dev
 ```
+
+### 日志查看
+
+```bash
+# 查看服务器日志
+tail -f logs/app.log
+
+# 查看错误日志
+tail -f logs/error.log
+```
+
+## 📈 性能优化
+
+1. **缓存策略**: 使用 Redis 替代内存缓存
+2. **连接池**: 配置数据库连接池
+3. **负载均衡**: 使用 Nginx 进行负载均衡
+4. **CDN**: 静态资源使用 CDN 加速
+5. **监控**: 集成 APM 监控工具
 
 ## 🤝 贡献指南
 
 1. Fork 项目
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
 3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
 4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 打开Pull Request
+5. 打开 Pull Request
 
 ## 📄 许可证
 
@@ -298,18 +344,18 @@ NODE_ENV=development npm run dev
 
 ## 🙏 致谢
 
-- [Coze](https://www.coze.com/) - 提供强大的AI聊天能力
-- [Express.js](https://expressjs.com/) - 优秀的Node.js Web框架
-- [JWT](https://jwt.io/) - 安全的身份验证标准
+- [Coze Platform](https://www.coze.cn) - 提供强大的 AI 能力
+- [Express.js](https://expressjs.com) - Web 框架
+- [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) - JWT 实现
 
 ## 📞 支持
 
-如果你在使用过程中遇到问题，可以：
+如有问题或建议，请：
 
-1. 查看本文档的故障排除部分
-2. 在GitHub上提交Issue
-3. 查看Coze官方文档
+1. 查看 [FAQ](docs/FAQ.md)
+2. 提交 [Issue](https://github.com/your-repo/issues)
+3. 联系技术支持: support@firechat.com
 
 ---
 
-**注意**: 这是一个演示项目，在生产环境中使用前请确保进行充分的安全审查和测试。
+**FireChat Team** ❤️ 用心打造智能客服解决方案
