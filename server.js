@@ -1,19 +1,52 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 
 const JWTUtils = require('./utils/jwtUtils');
 const CozeClient = require('./utils/cozeClient');
 
+// 加载配置文件
+function loadServerConfig() {
+  const configPath = path.join(__dirname, 'config/server.json');
+  
+  if (!fs.existsSync(configPath)) {
+    console.warn('⚠️ 服务器配置文件不存在，使用默认配置');
+    return {
+      port: 3000,
+      cors: {
+        allowed_origins: [
+          'http://localhost:3000',
+          'http://127.0.0.1:3000',
+          'http://localhost:8080',
+          'http://127.0.0.1:8080'
+        ],
+        credentials: true
+      }
+    };
+  }
+  
+  try {
+    return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  } catch (error) {
+    console.error('❌ 服务器配置文件解析失败:', error.message);
+    process.exit(1);
+  }
+}
+
+const serverConfig = loadServerConfig();
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = serverConfig.port || 3000;
 
 // 中间件配置
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // CORS配置
-const allowedOrigins = ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:8080', 'http://127.0.0.1:8080'];
+const allowedOrigins = serverConfig.cors?.allowed_origins || [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000'
+];
 
 app.use(cors({
   origin: function (origin, callback) {
@@ -26,7 +59,7 @@ app.use(cors({
       callback(new Error('不被CORS策略允许'));
     }
   },
-  credentials: true
+  credentials: serverConfig.cors?.credentials !== false
 }));
 
 // 静态文件服务
@@ -36,7 +69,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 let jwtUtils, cozeClient;
 
 try {
-  // 使用官方配置文件
+  // 使用新的配置文件结构
   jwtUtils = new JWTUtils();
   cozeClient = new CozeClient(jwtUtils);
   
@@ -44,9 +77,10 @@ try {
   console.log('✅ JWT工具和Coze客户端初始化成功');
   console.log(`🔗 Coze API端点: ${config.coze_api_base}`);
   console.log(`📱 应用ID: ${config.client_id}`);
+  console.log(`🌐 允许的CORS源: ${allowedOrigins.join(', ')}`);
 } catch (error) {
   console.error('❌ 初始化失败:', error.message);
-  console.error('请确保coze_oauth_nodejs_jwt/coze_oauth_config.json文件存在且配置正确');
+  console.error('请确保config/coze.json文件存在且配置正确');
   process.exit(1);
 }
 
@@ -64,10 +98,10 @@ function generateCacheKey(sessionName, deviceId) {
  * 健康检查
  */
 app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
+  res.json({ 
+    status: 'healthy', 
     timestamp: new Date().toISOString(),
-    service: 'FireChat-CozeSDK'
+    service: 'Coze OAuth JWT Service'
   });
 });
 
@@ -77,91 +111,64 @@ app.get('/health', (req, res) => {
  */
 app.post('/api/auth/token', async (req, res) => {
   try {
-    const { 
-      sessionName, 
-      deviceId, 
-      customConsumer,
-      forceRefresh = false 
-    } = req.body;
-
-    // 生成缓存key
-    const cacheKey = generateCacheKey(sessionName, deviceId);
+    const { sessionName, sessionContext, deviceId, consumer } = req.body;
     
-    // 检查缓存中是否有有效的token
-    if (!forceRefresh && tokenCache.has(cacheKey)) {
+    // 构建缓存键
+    const cacheKey = `${sessionName || 'default'}_${deviceId || 'unknown'}`;
+    
+    // 检查缓存
+    if (tokenCache.has(cacheKey)) {
       const cachedToken = tokenCache.get(cacheKey);
       
-      // 检查token是否即将过期
-      if (!jwtUtils.isTokenExpiringSoon(cachedToken.jwt)) {
-        console.log(`🔄 使用缓存的token: ${cacheKey}`);
+      // 检查token是否即将过期（提前5分钟刷新）
+      const now = Math.floor(Date.now() / 1000);
+      if (cachedToken.expires_in > now + 300) {
+        console.log(`🔄 返回缓存的token: ${cacheKey}`);
         return res.json({
           success: true,
           data: cachedToken,
-          cached: true
+          cached: true,
+          cacheKey: cacheKey
         });
       } else {
         console.log(`⏰ 缓存的token即将过期，重新生成: ${cacheKey}`);
         tokenCache.delete(cacheKey);
       }
     }
-
-    // 构建会话上下文
-    const sessionContext = {};
-    if (deviceId || customConsumer) {
-      sessionContext.device_info = {};
-      if (deviceId) sessionContext.device_info.device_id = deviceId;
-      if (customConsumer) sessionContext.device_info.custom_consumer = customConsumer;
-    }
-
-    // 生成JWT
-    const jwtToken = jwtUtils.generateJWT({
-      sessionName,
-      sessionContext: Object.keys(sessionContext).length > 0 ? sessionContext : undefined
-    });
-
-    console.log(`🔑 生成JWT成功: ${cacheKey}`);
-
-    // 获取OAuth访问令牌
-    const tokenResult = await cozeClient.getOAuthAccessToken(jwtToken);
     
-    if (!tokenResult.success) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          message: '获取访问令牌失败',
-          details: tokenResult.error
-        }
-      });
-    }
-
-    // 构建响应数据
+    // 使用官方SDK获取OAuth访问令牌
+    const tokenResult = await cozeClient.getOAuthToken(sessionName, {
+      ...sessionContext,
+      deviceId,
+      consumer,
+      timestamp: Date.now()
+    });
+    
+    // 准备返回数据
     const responseData = {
-      access_token: tokenResult.data.access_token,
-      token_type: tokenResult.data.token_type,
-      expires_in: tokenResult.data.expires_in,
-      jwt: jwtToken,
-      session_name: sessionName,
-      generated_at: new Date().toISOString()
+      ...tokenResult,
+      sessionName: sessionName,
+      deviceId: deviceId
     };
-
+    
     // 缓存token
     tokenCache.set(cacheKey, responseData);
+    console.log(`💾 Token已缓存: ${cacheKey}`);
     
-    console.log(`✅ 访问令牌生成成功: ${cacheKey}`);
-
     res.json({
       success: true,
       data: responseData,
-      cached: false
+      cached: false,
+      cacheKey: cacheKey
     });
-
+    
   } catch (error) {
-    console.error('❌ 生成访问令牌失败:', error.message);
+    console.error('生成访问令牌失败:', error);
     res.status(500).json({
       success: false,
       error: {
-        message: '服务器内部错误',
-        details: error.message
+        message: error.message,
+        type: 'token_generation_error'
       }
     });
   }
@@ -178,15 +185,22 @@ app.post('/api/auth/validate', async (req, res) => {
     if (!access_token) {
       return res.status(400).json({
         success: false,
-        error: { message: '缺少访问令牌' }
+        error: {
+          message: '缺少访问令牌',
+          code: 'missing_token'
+        }
       });
     }
 
-    const isValid = await cozeClient.validateAccessToken(access_token);
+    const validationResult = await cozeClient.validateToken(access_token);
     
     res.json({
       success: true,
-      data: { valid: isValid }
+      data: {
+        valid: validationResult.valid,
+        details: validationResult.valid ? validationResult.data : validationResult.error,
+        checked_at: new Date().toISOString()
+      }
     });
 
   } catch (error) {
@@ -213,23 +227,20 @@ app.get('/api/bot/:botId', async (req, res) => {
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({
         success: false,
-        error: { message: '缺少授权头' }
+        error: {
+          message: '缺少或无效的授权头',
+          code: 'missing_authorization'
+        }
       });
     }
 
-    const accessToken = authHeader.substring(7);
-    const botInfo = await cozeClient.getBotInfo(accessToken, botId);
+    const accessToken = authHeader.substring(7); // 移除 "Bearer " 前缀
     
-    if (!botInfo.success) {
-      return res.status(400).json({
-        success: false,
-        error: botInfo.error
-      });
-    }
-
+    const botInfo = await cozeClient.getBotInfo(botId, accessToken);
+    
     res.json({
       success: true,
-      data: botInfo.data
+      data: botInfo
     });
 
   } catch (error) {
@@ -284,19 +295,23 @@ app.delete('/api/auth/cache', (req, res) => {
 app.get('/api/status', async (req, res) => {
   try {
     const connectionTest = await cozeClient.testConnection();
+    const config = jwtUtils.getConfig();
     
     res.json({
       success: true,
       data: {
-        service: 'FireChat-CozeSDK',
-        version: '1.0.0',
+        service: 'Coze OAuth JWT Service',
+        status: 'running',
         timestamp: new Date().toISOString(),
         coze_connection: connectionTest,
         cache_size: tokenCache.size,
         config: {
-          app_id: process.env.COZE_APP_ID ? '已配置' : '未配置',
-          private_key: process.env.COZE_PRIVATE_KEY_PATH ? '已配置' : '未配置',
-          api_endpoint: process.env.COZE_API_ENDPOINT || 'api.coze.cn'
+          api_endpoint: config.coze_api_base,
+          www_endpoint: config.coze_www_base,
+          app_id: config.client_id,
+          client_type: config.client_type,
+          private_key: config.private_key ? '***configured***' : 'not_set',
+          public_key_id: config.public_key_id ? '***configured***' : 'not_set'
         }
       }
     });
@@ -336,10 +351,12 @@ app.use((error, req, res, next) => {
 
 // 启动服务器
 app.listen(PORT, () => {
+  const config = jwtUtils.getConfig();
   console.log(`🚀 FireChat-CozeSDK 服务器启动成功`);
   console.log(`📍 服务地址: http://localhost:${PORT}`);
   console.log(`🔧 环境: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🌐 API端点: ${process.env.COZE_API_ENDPOINT || 'api.coze.cn'}`);
+  console.log(`🌐 Coze API端点: ${config.coze_api_base}`);
+  console.log(`📋 配置文件: config/coze.json, config/server.json`);
 });
 
 // 优雅关闭

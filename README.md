@@ -4,7 +4,8 @@
 
 ## 🚀 功能特性
 
-- **OAuth JWT 鉴权**: 基于 Coze 官方 OAuth JWT 规范实现安全鉴权
+- **官方SDK集成**: 使用 `@coze/api` 官方 SDK 进行 JWT 认证
+- **标准配置**: 基于官方示例的配置文件结构
 - **访问令牌管理**: 自动生成和管理 OAuth 访问令牌
 - **会话隔离**: 支持多用户会话隔离，每个用户独立的对话历史
 - **设备管理**: 支持 IoT 设备和自定义消费者标识
@@ -49,33 +50,68 @@ npm install
    - 复制公钥指纹
 6. 配置权限并完成授权
 
-### 4. 配置环境变量
+### 4. 配置应用
 
-复制环境变量模板：
+#### Coze OAuth 配置
 
-```bash
-cp .env.example .env
+创建 `config/coze.json` 配置文件：
+
+```json
+{
+  "client_type": "jwt",
+  "client_id": "your_app_id_here",
+  "coze_www_base": "https://www.coze.cn",
+  "coze_api_base": "https://api.coze.cn",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY_CONTENT_HERE\n-----END PRIVATE KEY-----",
+  "public_key_id": "your_public_key_fingerprint_here"
+}
 ```
 
-编辑 `.env` 文件：
+#### 服务器配置
 
-```env
-# Coze OAuth 应用配置
-COZE_APP_ID=your_oauth_app_id
-COZE_PRIVATE_KEY_PATH=./private_key.pem
-COZE_PUBLIC_KEY_FINGERPRINT=your_public_key_fingerprint
-COZE_API_ENDPOINT=api.coze.cn
+创建 `config/server.json` 配置文件：
 
-# 服务器配置
-PORT=3000
-JWT_EXPIRY_HOURS=1
-
-# CORS配置
-ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8080
-
-# Bot配置
-DEFAULT_BOT_ID=your_bot_id
+```json
+{
+  "port": 3000,
+  "cors": {
+    "allowed_origins": [
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+      "http://localhost:8080",
+      "http://127.0.0.1:8080"
+    ],
+    "credentials": true
+  },
+  "cache": {
+    "token_ttl_minutes": 55,
+    "max_cache_size": 1000
+  },
+  "logging": {
+    "level": "info",
+    "enable_request_logging": true
+  }
+}
 ```
+
+#### 配置说明
+
+**Coze 配置 (config/coze.json)**:
+- `client_type`: 固定为 "jwt"
+- `client_id`: 你的 Coze OAuth 应用 ID
+- `coze_www_base`: Coze 网站地址
+- `coze_api_base`: Coze API 地址
+- `private_key`: 你的私钥内容（包含换行符 \n）
+- `public_key_id`: 你的公钥指纹
+
+**服务器配置 (config/server.json)**:
+- `port`: 服务器端口号
+- `cors.allowed_origins`: 允许的跨域源
+- `cors.credentials`: 是否允许携带凭证
+- `cache.token_ttl_minutes`: 令牌缓存时间（分钟）
+- `cache.max_cache_size`: 最大缓存数量
+- `logging.level`: 日志级别
+- `logging.enable_request_logging`: 是否启用请求日志
 
 ### 5. 创建并发布 Bot
 
@@ -88,19 +124,36 @@ DEFAULT_BOT_ID=your_bot_id
 
 ## 🚀 启动服务
 
-### 开发模式
+### 1. 安装依赖
 
+```bash
+npm install
+```
+
+### 2. 配置应用
+
+确保已正确配置 `config/coze.json` 和 `config/server.json` 文件中的所有必需参数。
+
+### 3. 启动服务
+
+开发模式：
 ```bash
 npm run dev
 ```
 
-### 生产模式
-
+生产模式：
 ```bash
 npm start
 ```
 
-服务启动后访问: http://localhost:3000
+或使用便捷脚本：
+```bash
+./start.sh
+```
+
+### 4. 验证服务
+
+访问 http://localhost:3000 查看示例页面，或访问 http://localhost:3000/health 检查服务状态。
 
 ## 📚 API 文档
 
@@ -244,14 +297,18 @@ function createUserSession(userId) {
 ### JWT 自定义配置
 
 ```javascript
-// utils/jwtUtils.js
-const jwtUtils = new JWTUtils({
-  appId: 'your_app_id',
-  privateKeyPath: './private_key.pem',
-  publicKeyFingerprint: 'your_fingerprint',
-  apiEndpoint: 'api.coze.cn',
-  expiryHours: 2  // 自定义过期时间
-});
+// 使用自定义配置文件路径
+const jwtUtils = new JWTUtils('/path/to/custom/coze.json');
+
+// 或者在配置文件中自定义设置
+// config/coze.json
+{
+  "client_type": "jwt",
+  "client_id": "your_app_id",
+  "coze_api_base": "https://api.coze.cn",
+  "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----",
+  "public_key_id": "your_fingerprint"
+}
 ```
 
 ### 缓存策略
@@ -274,12 +331,13 @@ const tokenCache = {
 
 ## 🔒 安全注意事项
 
-1. **私钥安全**: 确保 `private_key.pem` 文件安全存储，不要提交到版本控制
-2. **环境变量**: 生产环境使用环境变量管理敏感信息
+1. **配置文件安全**: 确保 `config/coze.json` 文件安全存储，不要提交到版本控制
+2. **私钥保护**: 私钥内容应妥善保管，避免泄露
 3. **HTTPS**: 生产环境必须使用 HTTPS
 4. **CORS**: 正确配置 CORS 允许的域名
 5. **令牌过期**: 合理设置 JWT 过期时间
 6. **会话隔离**: 使用 sessionName 确保用户数据隔离
+7. **配置验证**: 启动时会自动验证配置文件的完整性
 
 ## 🐛 故障排除
 

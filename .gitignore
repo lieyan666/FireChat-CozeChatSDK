@@ -1,3 +1,9 @@
+# 配置文件（包含敏感信息）
+config/coze.json
+config/server.json
+# 保留示例文件
+!config/*.example.json
+
 # 依赖文件
 node_modules/
 npm-debug.log*

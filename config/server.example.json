@@ -1,0 +1,20 @@
+{
+  "port": 3000,
+  "cors": {
+    "allowed_origins": [
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+      "http://localhost:8080",
+      "http://127.0.0.1:8080"
+    ],
+    "credentials": true
+  },
+  "cache": {
+    "token_ttl_minutes": 55,
+    "max_cache_size": 1000
+  },
+  "logging": {
+    "level": "info",
+    "enable_request_logging": true
+  }
+}

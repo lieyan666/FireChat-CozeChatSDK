@@ -8,17 +8,22 @@ class JWTUtils {
     }
 
     loadConfig(configPath = null) {
-        // Use the official config file path if not provided
-        const defaultConfigPath = path.join(__dirname, '../coze_oauth_nodejs_jwt/coze_oauth_config.json');
+        // Use the new config file path
+        const defaultConfigPath = path.join(__dirname, '../config/coze.json');
         const finalConfigPath = configPath || defaultConfigPath;
         
         // Check if configuration file exists
         if (!fs.existsSync(finalConfigPath)) {
-            throw new Error(`Configuration file ${finalConfigPath} does not exist!`);
+            throw new Error(`Coze配置文件 ${finalConfigPath} 不存在！请检查config/coze.json文件`);
         }
 
         // Read configuration file
-        const config = JSON.parse(fs.readFileSync(finalConfigPath, 'utf8'));
+        let config;
+        try {
+            config = JSON.parse(fs.readFileSync(finalConfigPath, 'utf8'));
+        } catch (error) {
+            throw new Error(`配置文件解析失败: ${error.message}`);
+        }
 
         // Validate required fields
         const requiredFields = [
@@ -32,11 +37,16 @@ class JWTUtils {
 
         for (const field of requiredFields) {
             if (!config[field]) {
-                throw new Error(`Configuration file missing required field: ${field}`);
+                throw new Error(`配置文件缺少必需字段: ${field}`);
             }
             if (typeof config[field] === 'string' && !config[field].trim()) {
-                throw new Error(`Configuration field ${field} cannot be an empty string`);
+                throw new Error(`配置字段 ${field} 不能为空字符串`);
             }
+        }
+
+        // Validate private key format
+        if (!config.private_key.includes('BEGIN PRIVATE KEY')) {
+            throw new Error('私钥格式不正确，请确保包含完整的PEM格式私钥');
         }
 
         return config;
