@@ -71,46 +71,13 @@ main() {
         print_message "✅ 依赖已安装" "$GREEN"
     fi
     
-    # 检查环境变量文件
-    if ! file_exists ".env"; then
-        print_message "⚠️  警告: 未找到 .env 文件" "$YELLOW"
-        if file_exists ".env.example"; then
-            print_message "📋 正在复制 .env.example 到 .env" "$BLUE"
-            cp .env.example .env
-            print_message "⚠️  请编辑 .env 文件并配置必要的环境变量" "$YELLOW"
-            print_message "   - COZE_APP_ID: OAuth 应用 ID" "$YELLOW"
-            print_message "   - COZE_PRIVATE_KEY_PATH: 私钥文件路径" "$YELLOW"
-            print_message "   - COZE_PUBLIC_KEY_FINGERPRINT: 公钥指纹" "$YELLOW"
-            print_message "   - DEFAULT_BOT_ID: Bot ID" "$YELLOW"
-            echo
-            read -p "是否现在编辑 .env 文件? (y/n): " -n 1 -r
-            echo
-            if [[ $REPLY =~ ^[Yy]$ ]]; then
-                if command_exists nano; then
-                    nano .env
-                elif command_exists vim; then
-                    vim .env
-                elif command_exists code; then
-                    code .env
-                else
-                    print_message "请手动编辑 .env 文件" "$YELLOW"
-                fi
-            fi
-        else
-            print_message "❌ 错误: 未找到 .env.example 文件" "$RED"
-            exit 1
-        fi
+    print_message "🔄 正在拉取最新代码..." "$YELLOW"
+    git pull origin main
+    if [ $? -eq 0 ]; then
+        print_message "✅ 代码拉取成功" "$GREEN"
     else
-        print_message "✅ 环境变量文件已存在" "$GREEN"
-    fi
-    
-    # 检查私钥文件
-    if file_exists ".env"; then
-        PRIVATE_KEY_PATH=$(grep COZE_PRIVATE_KEY_PATH .env | cut -d'=' -f2 | tr -d '"' | tr -d "'")
-        if [ -n "$PRIVATE_KEY_PATH" ] && ! file_exists "$PRIVATE_KEY_PATH"; then
-            print_message "⚠️  警告: 私钥文件不存在: $PRIVATE_KEY_PATH" "$YELLOW"
-            print_message "   请确保已从 Coze 平台下载私钥文件并放置在正确位置" "$YELLOW"
-        fi
+        print_message "❌ 代码拉取失败" "$RED"
+        exit 1
     fi
     
     echo
