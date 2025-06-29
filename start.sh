@@ -72,7 +72,7 @@ main() {
     fi
     
     print_message "🔄 正在拉取最新代码..." "$YELLOW"
-    git pull origin main
+    git pull
     if [ $? -eq 0 ]; then
         print_message "✅ 代码拉取成功" "$GREEN"
     else
