@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FireChat - Coze聊天演示</title>
+    <!-- Coze官方Chat SDK -->
+    <script src="https://lf-cdn.coze.cn/obj/unpkg/flow-platform/chat-app-sdk/1.2.0-beta.10/libs/cn/index.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            width: 100%;
+            max-width: 1000px;
+            height: 600px;
+            display: flex;
+        }
+
+        .auth-panel {
+            flex: 1;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            background: #f8f9fa;
+        }
+
+        .chat-panel {
+            flex: 2;
+            display: none;
+            flex-direction: column;
+            background: white;
+        }
+
+        .chat-panel.active {
+            display: flex;
+        }
+
+        .auth-panel.hidden {
+            display: none;
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo h1 {
+            color: #667eea;
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+
+        .logo p {
+            color: #6c757d;
+            margin-top: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #495057;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .switch-form {
+            text-align: center;
+            margin-top: 20px;
+            color: #6c757d;
+        }
+
+        .switch-form a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+
+        /* 聊天界面样式 */
+        .chat-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-header h2 {
+            font-size: 1.5rem;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .mode-switch {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.3s;
+        }
+
+        .mode-switch:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .logout-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .chat-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 自定义聊天模式 */
+        .custom-chat {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f8f9fa;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .message.user {
+            justify-content: flex-end;
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            word-wrap: break-word;
+        }
+
+        .message.user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .message.bot .message-content {
+            background: white;
+            border: 1px solid #e9ecef;
+            color: #495057;
+        }
+
+        .chat-input {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-group input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e9ecef;
+            border-radius: 25px;
+            font-size: 16px;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .send-btn {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .typing {
+            display: none;
+            color: #6c757d;
+            font-style: italic;
+            padding: 10px 20px;
+        }
+
+        /* Coze Web SDK 模式 */
+        .coze-chat {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .coze-chat.active {
+            display: flex;
+        }
+
+        .coze-header {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 15px;
+            text-align: center;
+            border-radius: 8px 8px 0 0;
+            border-bottom: 1px solid #bbdefb;
+        }
+
+        .coze-header h3 {
+            margin: 0 0 5px 0;
+            font-size: 1.1rem;
+        }
+
+        .coze-header p {
+            margin: 0;
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .coze-container {
+            flex: 1;
+            background: white;
+            border-radius: 0 0 8px 8px;
+            position: relative;
+            min-height: 400px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                height: 100vh;
+                border-radius: 0;
+                max-width: none;
+            }
+
+            .auth-panel {
+                padding: 20px;
+            }
+
+            .logo h1 {
+                font-size: 2rem;
+            }
+
+            .header-controls {
+                flex-direction: column;
+                gap: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 认证面板 -->
+        <div class="auth-panel" id="authPanel">
+            <div class="logo">
+                <h1>宇文老师</h1>
+                <h2>Powerd by FireChat & Coze</h2>
+                <p>基于Coze的智能聊天演示</p>
+            </div>
+
+            <div id="errorMessage" class="error" style="display: none;"></div>
+            <div id="successMessage" class="success" style="display: none;"></div>
+
+            <!-- 登录表单 -->
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="loginStudentId">学号（6位数字）</label>
+                    <input type="text" id="loginStudentId" placeholder="请输入6位学号" maxlength="6" pattern="\d{6}" required>
+                </div>
+                <button type="submit" class="btn" id="loginBtn">登录</button>
+            </form>
+
+        </div>
+
+        <!-- 聊天面板 -->
+        <div class="chat-panel" id="chatPanel">
+            <div class="chat-header">
+                <h2>💬 智能助手</h2>
+                <div class="header-controls">
+                    <button class="mode-switch" id="modeSwitch">切换到Coze原生</button>
+                    <button class="logout-btn" id="logoutBtn">退出登录</button>
+                </div>
+            </div>
+            
+            <div class="chat-content">
+                <!-- 自定义聊天模式 -->
+                <div class="custom-chat" id="customChat">
+                    <div class="chat-messages" id="chatMessages">
+                        <div class="message bot">
+                            <div class="message-content">
+                                👋 你好！我是你的AI助手，有什么可以帮助你的吗？
+                            </div>
+                        </div>
+                    </div>
+                    <div class="typing" id="typing">AI正在思考中...</div>
+                    <div class="chat-input">
+                        <div class="input-group">
+                            <input type="text" id="messageInput" placeholder="输入你的消息..." maxlength="1000">
+                            <button class="send-btn" id="sendBtn">发送</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Coze官方SDK聊天 -->
+                <div class="coze-chat" id="cozeChat">
+                    <div class="coze-header">
+                        <h3>🤖 Coze官方SDK聊天</h3>
+                        <p>使用Coze官方Chat SDK提供的聊天界面</p>
+                    </div>
+                    <div id="cozeChatContainer" class="coze-container">
+                        <!-- Coze Chat SDK将在这里渲染聊天界面 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class FireChatApp {
+            constructor() {
+                this.token = localStorage.getItem('token');
+                this.isLoginMode = true;
+                this.isCustomMode = true; // true: 自定义聊天, false: Coze原生
+                this.cozeWebSDK = null;
+                this.init();
+            }
+
+            init() {
+                this.bindEvents();
+                if (this.token) {
+                    this.showChatPanel();
+                }
+            }
+
+            bindEvents() {
+                // 登录表单
+                document.getElementById('loginForm').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.handleLogin();
+                });
+
+                // 退出登录
+                document.getElementById('logoutBtn').addEventListener('click', () => {
+                    this.handleLogout();
+                });
+
+                // 模式切换
+                document.getElementById('modeSwitch').addEventListener('click', () => {
+                    this.toggleChatMode();
+                });
+
+                // 发送消息
+                document.getElementById('sendBtn').addEventListener('click', () => {
+                    this.sendMessage();
+                });
+
+                // 回车发送
+                document.getElementById('messageInput').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.sendMessage();
+                    }
+                });
+
+                // 学号输入限制
+                document.getElementById('loginStudentId').addEventListener('input', (e) => {
+                    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                });
+            }
+
+
+
+            async toggleChatMode() {
+                this.isCustomMode = !this.isCustomMode;
+                const modeSwitch = document.getElementById('modeSwitch');
+                const customChat = document.getElementById('customChat');
+                const cozeChat = document.getElementById('cozeChat');
+                
+                if (this.isCustomMode) {
+                    modeSwitch.textContent = '切换到Coze原生';
+                    customChat.style.display = 'flex';
+                    cozeChat.classList.remove('active');
+                } else {
+                    modeSwitch.textContent = '切换到自定义';
+                    customChat.style.display = 'none';
+                    cozeChat.classList.add('active');
+                    await this.initCozeSDK();
+                }
+            }
+
+            async initCozeSDK() {
+                try {
+                    // 如果已经初始化过，直接返回
+                    if (this.cozeWebSDK) {
+                        return;
+                    }
+                    
+                    // 获取OAuth token
+                    const response = await fetch('/api/auth/oauth-token', {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${this.token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('获取OAuth token失败');
+                    }
+                    
+                    const data = await response.json();
+                    const oauthToken = data.token;
+                    
+                    // 初始化Coze Web SDK
+                    this.cozeWebSDK = new CozeWebSDK.WebChatClient({
+                        config: {
+                            bot_id: '7493834003054297088' // 替换为你的bot_id
+                        },
+                        auth: {
+                            type: 'token',
+                            token: oauthToken,
+                            onRefreshToken: async () => {
+                                // 刷新token的逻辑
+                                const refreshResponse = await fetch('/api/auth/oauth-token', {
+                                    method: 'GET',
+                                    headers: {
+                                        'Authorization': `Bearer ${this.token}`,
+                                        'Content-Type': 'application/json'
+                                    }
+                                });
+                                const refreshData = await refreshResponse.json();
+                                return refreshData.token;
+                            }
+                        },
+                        ui: {
+                            base: {
+                                layout: 'pc',
+                                zIndex: 1000
+                            },
+                            header: {
+                                isShow: true
+                            }
+                        },
+                        chatBot: {
+                            title: 'Coze助手',
+                            uploadable: true,
+                            width: '100%',
+                            height: '100%',
+                            el: document.getElementById('cozeChatContainer'),
+                            onHide: () => {
+                                console.log('Coze聊天框隐藏');
+                            },
+                            onShow: () => {
+                                console.log('Coze聊天框显示');
+                            }
+                        },
+                        footer: {
+                            isShow: true,
+                            expressionText: '由{{name}}提供。内容均由 AI 生成，仅供参考',
+                            linkvars: {
+                                name: {
+                                    text: 'Coze',
+                                    link: 'https://www.coze.cn/'
+                                }
+                            }
+                        }
+                    });
+                    
+                    console.log('Coze Web SDK初始化成功');
+                    
+                } catch (error) {
+                    console.error('初始化Coze SDK失败:', error);
+                    this.showError('初始化Coze聊天失败，请重试');
+                    // 重置状态
+                    this.isCustomMode = true;
+                    document.getElementById('modeSwitch').textContent = '切换到Coze原生';
+                    document.getElementById('customChat').style.display = 'flex';
+                    document.getElementById('cozeChat').classList.remove('active');
+                }
+            }
+
+
+
+            getCurrentUser() {
+                try {
+                    const payload = JSON.parse(atob(this.token.split('.')[1]));
+                    return payload;
+                } catch {
+                    return null;
+                }
+            }
+
+            async handleLogin() {
+                const studentId = document.getElementById('loginStudentId').value;
+                const btn = document.getElementById('loginBtn');
+
+                if (!/^\d{6}$/.test(studentId)) {
+                    this.showError('请输入6位数字学号');
+                    return;
+                }
+
+                btn.disabled = true;
+                btn.textContent = '登录中...';
+
+                try {
+                    const response = await fetch('/api/auth/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ studentId }),
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        this.token = data.token;
+                        localStorage.setItem('token', this.token);
+                        this.showSuccess('登录成功！');
+                        setTimeout(() => this.showChatPanel(), 1000);
+                    } else {
+                        this.showError(data.error || '登录失败');
+                    }
+                } catch (error) {
+                    this.showError('网络错误，请稍后重试');
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = '登录';
+                }
+            }
+
+
+
+            handleLogout() {
+                this.token = null;
+                localStorage.removeItem('token');
+                
+                // 清理Coze SDK实例
+                if (this.cozeWebSDK) {
+                    this.cozeWebSDK = null;
+                }
+                
+                this.showAuthPanel();
+                this.clearChat();
+                // 重置为自定义模式
+                this.isCustomMode = true;
+                document.getElementById('customChat').style.display = 'flex';
+                document.getElementById('cozeChat').classList.remove('active');
+                document.getElementById('modeSwitch').textContent = '切换到Coze原生';
+            }
+
+            async sendMessage() {
+                if (!this.isCustomMode) return; // 只在自定义模式下处理
+
+                const input = document.getElementById('messageInput');
+                const message = input.value.trim();
+                const sendBtn = document.getElementById('sendBtn');
+
+                if (!message) return;
+
+                // 添加用户消息
+                this.addMessage(message, 'user');
+                input.value = '';
+                sendBtn.disabled = true;
+                this.showTyping();
+
+                try {
+                    const response = await fetch('/api/chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.token}`,
+                        },
+                        body: JSON.stringify({ message }),
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        this.addMessage(data.reply, 'bot');
+                    } else {
+                        if (response.status === 401 || response.status === 403) {
+                            this.handleLogout();
+                            this.showError('登录已过期，请重新登录');
+                            return;
+                        }
+                        this.addMessage('抱歉，我现在无法回复。请稍后再试。', 'bot');
+                    }
+                } catch (error) {
+                    this.addMessage('网络连接出现问题，请检查网络后重试。', 'bot');
+                } finally {
+                    this.hideTyping();
+                    sendBtn.disabled = false;
+                }
+            }
+
+            addMessage(content, type) {
+                const messagesContainer = document.getElementById('chatMessages');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${type}`;
+                
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'message-content';
+                contentDiv.textContent = content;
+                
+                messageDiv.appendChild(contentDiv);
+                messagesContainer.appendChild(messageDiv);
+                
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+
+            showTyping() {
+                document.getElementById('typing').style.display = 'block';
+            }
+
+            hideTyping() {
+                document.getElementById('typing').style.display = 'none';
+            }
+
+            showChatPanel() {
+                document.getElementById('authPanel').classList.add('hidden');
+                document.getElementById('chatPanel').classList.add('active');
+            }
+
+            showAuthPanel() {
+                document.getElementById('authPanel').classList.remove('hidden');
+                document.getElementById('chatPanel').classList.remove('active');
+            }
+
+            clearChat() {
+                const messagesContainer = document.getElementById('chatMessages');
+                messagesContainer.innerHTML = `
+                    <div class="message bot">
+                        <div class="message-content">
+                            👋 你好！我是你的AI助手，有什么可以帮助你的吗？
+                        </div>
+                    </div>
+                `;
+            }
+
+            showError(message) {
+                const errorDiv = document.getElementById('errorMessage');
+                errorDiv.textContent = message;
+                errorDiv.style.display = 'block';
+                document.getElementById('successMessage').style.display = 'none';
+            }
+
+            showSuccess(message) {
+                const successDiv = document.getElementById('successMessage');
+                successDiv.textContent = message;
+                successDiv.style.display = 'block';
+                document.getElementById('errorMessage').style.display = 'none';
+            }
+
+            clearMessages() {
+                document.getElementById('errorMessage').style.display = 'none';
+                document.getElementById('successMessage').style.display = 'none';
+            }
+        }
+
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', () => {
+            new FireChatApp();
+        });
+    </script>
+</body>
+</html>
