@@ -69,27 +69,121 @@ function getRealIP(req) {
          (req.connection.socket ? req.connection.socket.remoteAddress : null) || 'unknown';
 }
 
+// 获取状态码颜色
+function getStatusColor(statusCode) {
+  if (statusCode >= 200 && statusCode < 300) return '\x1b[32m'; // 绿色
+  if (statusCode >= 300 && statusCode < 400) return '\x1b[33m'; // 黄色
+  if (statusCode >= 400 && statusCode < 500) return '\x1b[31m'; // 红色
+  if (statusCode >= 500) return '\x1b[35m'; // 紫色
+  return '\x1b[0m'; // 默认
+}
+
+// 获取方法颜色
+function getMethodColor(method) {
+  switch (method) {
+    case 'GET': return '\x1b[36m'; // 青色
+    case 'POST': return '\x1b[33m'; // 黄色
+    case 'PUT': return '\x1b[34m'; // 蓝色
+    case 'DELETE': return '\x1b[31m'; // 红色
+    case 'PATCH': return '\x1b[35m'; // 紫色
+    default: return '\x1b[0m'; // 默认
+  }
+}
+
+// 格式化时间
+function formatTime() {
+  const now = new Date();
+  return now.toLocaleTimeString('zh-CN', { hour12: false });
+}
+
+// 从User-Agent解析设备类型和浏览器信息
+function getDeviceType(userAgent) {
+  if (!userAgent) return 'unknown';
+  
+  const ua = userAgent.toLowerCase();
+  let os = 'unknown';
+  let browser = 'unknown';
+  let version = '';
+  
+  // 检测操作系统
+  if (ua.includes('windows nt')) {
+    const winMatch = ua.match(/windows nt ([\d\.]+)/);
+    os = winMatch ? `windows${winMatch[1]}` : 'windows';
+  } else if (ua.includes('macintosh') || ua.includes('mac os x')) {
+    const macMatch = ua.match(/mac os x ([\d_]+)/);
+    os = macMatch ? `macOS${macMatch[1].replace(/_/g, '.')}` : 'macOS';
+  } else if (ua.includes('iphone')) {
+    const iosMatch = ua.match(/os ([\d_]+)/);
+    os = iosMatch ? `iOS${iosMatch[1].replace(/_/g, '.')}` : 'iOS';
+  } else if (ua.includes('ipad')) {
+    const iosMatch = ua.match(/os ([\d_]+)/);
+    os = iosMatch ? `iPadOS${iosMatch[1].replace(/_/g, '.')}` : 'iPadOS';
+  } else if (ua.includes('android')) {
+    const androidMatch = ua.match(/android ([\d\.]+)/);
+    os = androidMatch ? `Android${androidMatch[1]}` : 'Android';
+  } else if (ua.includes('linux')) {
+    os = 'Linux';
+  }
+  
+  // 检测浏览器和版本
+  if (ua.includes('chrome/') && !ua.includes('edg/')) {
+    const chromeMatch = ua.match(/chrome\/([\d\.]+)/);
+    browser = 'Chrome';
+    version = chromeMatch ? chromeMatch[1] : '';
+  } else if (ua.includes('firefox/')) {
+    const firefoxMatch = ua.match(/firefox\/([\d\.]+)/);
+    browser = 'Firefox';
+    version = firefoxMatch ? firefoxMatch[1] : '';
+  } else if (ua.includes('safari/') && !ua.includes('chrome')) {
+    const safariMatch = ua.match(/version\/([\d\.]+)/);
+    browser = 'Safari';
+    version = safariMatch ? safariMatch[1] : '';
+  } else if (ua.includes('edg/')) {
+    const edgeMatch = ua.match(/edg\/([\d\.]+)/);
+    browser = 'Edge';
+    version = edgeMatch ? edgeMatch[1] : '';
+  } else if (ua.includes('opera/') || ua.includes('opr/')) {
+    const operaMatch = ua.match(/(?:opera\/|opr\/)([\d\.]+)/);
+    browser = 'Opera';
+    version = operaMatch ? operaMatch[1] : '';
+  } else if (ua.includes('bot') || ua.includes('crawler') || ua.includes('spider')) {
+    return 'Bot';
+  }
+  
+  // 格式化版本号（只保留主要版本号）
+  if (version) {
+    const majorVersion = version.split('.')[0];
+    version = `-${majorVersion}`;
+  }
+  
+  // 返回格式：OS_Browser-Version
+  if (os === 'unknown' || browser === 'unknown') {
+    return os !== 'unknown' ? os : (browser !== 'unknown' ? browser : 'unknown');
+  }
+  
+  return `${os}_${browser}${version}`;
+}
+
 // 日志中间件
 function logRequest(req, res, next) {
   const startTime = Date.now();
-  const timestamp = new Date().toISOString();
   const ip = getRealIP(req);
   const method = req.method;
   const url = req.originalUrl || req.url;
-  const userAgent = req.headers['user-agent'] || 'unknown';
-  const referer = req.headers.referer || '-';
+  const deviceType = getDeviceType(req.headers['user-agent']);
   
-  // 记录请求开始
-  console.log(`[${timestamp}] ${ip} "${method} ${url}" - "${userAgent}" "${referer}"`);
+  // 简化的请求日志，包含设备信息
+  const methodColor = getMethodColor(method);
+  console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m \x1b[96m${deviceType}\x1b[0m ${methodColor}${method}\x1b[0m \x1b[97m${url}\x1b[0m`);
   
   // 监听响应结束事件
   res.on('finish', () => {
     const duration = Date.now() - startTime;
     const statusCode = res.statusCode;
-    const contentLength = res.get('content-length') || '-';
+    const statusColor = getStatusColor(statusCode);
     
-    // 记录响应完成
-    console.log(`[${timestamp}] ${ip} "${method} ${url}" ${statusCode} ${contentLength} ${duration}ms`);
+    // 简化的响应日志，包含设备信息
+    console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m \x1b[96m${deviceType}\x1b[0m ${statusColor}${statusCode}\x1b[0m \x1b[90m${duration}ms\x1b[0m`);
   });
   
   next();
@@ -158,8 +252,9 @@ function generateCacheKey(sessionName, deviceId) {
 app.get('/health', (req, res) => {
   const ip = getRealIP(req);
   const timestamp = new Date().toISOString();
+  const deviceType = getDeviceType(req.headers['user-agent']);
   
-  console.log(`[${timestamp}] ${ip} 健康检查请求`);
+  console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m \x1b[96m${deviceType}\x1b[0m \x1b[32m💚\x1b[0m \x1b[90mhealth\x1b[0m`);
   
   res.json({ 
     status: 'healthy', 
@@ -178,11 +273,10 @@ app.post('/api/auth/token', async (req, res) => {
   
   try {
     const { sessionName, sessionContext, deviceId, consumer } = req.body;
-    
-    console.log(`[${timestamp}] ${ip} 请求获取访问令牌 - sessionName: ${sessionName || 'default'}, deviceId: ${deviceId || 'unknown'}`);
-    
-    // 构建缓存键
     const cacheKey = `${sessionName || 'default'}_${deviceId || 'unknown'}`;
+    const deviceType = getDeviceType(req.headers['user-agent']);
+    
+    console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m \x1b[36m🔑\x1b[0m \x1b[97m${sessionName || 'default'}\x1b[0m \x1b[90mdevice:${deviceType} key:${cacheKey}\x1b[0m`);
     
     // 检查缓存
     if (tokenCache.has(cacheKey)) {
@@ -191,7 +285,7 @@ app.post('/api/auth/token', async (req, res) => {
       // 检查token是否即将过期（提前5分钟刷新）
       const now = Math.floor(Date.now() / 1000);
       if (cachedToken.expires_in > now + 300) {
-        console.log(`[${timestamp}] ${ip} 🔄 返回缓存的token: ${cacheKey}`);
+        console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m \x1b[32m🔄\x1b[0m \x1b[90mcached device:${deviceType} key:${cacheKey}\x1b[0m`);
         return res.json({
           success: true,
           data: cachedToken,
@@ -199,7 +293,7 @@ app.post('/api/auth/token', async (req, res) => {
           cacheKey: cacheKey
         });
       } else {
-        console.log(`[${timestamp}] ${ip} ⏰ 缓存的token即将过期，重新生成: ${cacheKey}`);
+        console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m \x1b[33m⏰\x1b[0m \x1b[90mexpired device:${deviceType} key:${cacheKey}\x1b[0m`);
         tokenCache.delete(cacheKey);
       }
     }
@@ -221,7 +315,7 @@ app.post('/api/auth/token', async (req, res) => {
     
     // 缓存token
     tokenCache.set(cacheKey, responseData);
-    console.log(`[${timestamp}] ${ip} 💾 Token已缓存: ${cacheKey}`);
+    console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m \x1b[32m💾\x1b[0m \x1b[90mstored device:${deviceType} key:${cacheKey}\x1b[0m`);
     
     res.json({
       success: true,
@@ -231,7 +325,7 @@ app.post('/api/auth/token', async (req, res) => {
     });
     
   } catch (error) {
-    console.error(`[${timestamp}] ${ip} ❌ 生成访问令牌失败:`, error.message);
+    console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m \x1b[31m❌\x1b[0m \x1b[91m${error.message}\x1b[0m`);
     res.status(500).json({
       success: false,
       error: {
@@ -249,14 +343,15 @@ app.post('/api/auth/token', async (req, res) => {
 app.post('/api/auth/validate', async (req, res) => {
   const ip = getRealIP(req);
   const timestamp = new Date().toISOString();
+  const deviceType = getDeviceType(req.headers['user-agent']);
   
   try {
     const { access_token } = req.body;
     
-    console.log(`[${timestamp}] ${ip} 请求验证访问令牌`);
+    console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m \x1b[96m${deviceType}\x1b[0m \x1b[35m🔍\x1b[0m \x1b[90mvalidate\x1b[0m`);
     
     if (!access_token) {
-      console.log(`[${timestamp}] ${ip} ⚠️ 验证令牌失败: 缺少访问令牌`);
+      console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m \x1b[96m${deviceType}\x1b[0m \x1b[31m⚠️\x1b[0m \x1b[91mno token\x1b[0m`);
       return res.status(400).json({
         success: false,
         error: {
@@ -268,7 +363,7 @@ app.post('/api/auth/validate', async (req, res) => {
 
     const validationResult = await cozeClient.validateToken(access_token);
     
-    console.log(`[${timestamp}] ${ip} ✅ 令牌验证${validationResult.valid ? '成功' : '失败'}`);
+    console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m \x1b[96m${deviceType}\x1b[0m ${validationResult.valid ? '\x1b[32m✅' : '\x1b[31m❌'}\x1b[0m \x1b[90m${validationResult.valid ? 'valid' : 'invalid'}\x1b[0m`);
     
     res.json({
       success: true,
@@ -280,7 +375,7 @@ app.post('/api/auth/validate', async (req, res) => {
     });
 
   } catch (error) {
-    console.error(`[${timestamp}] ${ip} ❌ 验证访问令牌失败:`, error.message);
+    console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m \x1b[96m${deviceType}\x1b[0m \x1b[31m❌\x1b[0m \x1b[91m${error.message}\x1b[0m`);
     res.status(500).json({
       success: false,
       error: {
@@ -298,15 +393,16 @@ app.post('/api/auth/validate', async (req, res) => {
 app.get('/api/bot/:botId', async (req, res) => {
   const ip = getRealIP(req);
   const timestamp = new Date().toISOString();
+  const deviceType = getDeviceType(req.headers['user-agent']);
   
   try {
     const { botId } = req.params;
     const authHeader = req.headers.authorization;
     
-    console.log(`[${timestamp}] ${ip} 请求获取Bot信息 - botId: ${botId}`);
+    console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m \x1b[96m${deviceType}\x1b[0m \x1b[34m🤖\x1b[0m \x1b[97m${botId}\x1b[0m`);
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.log(`[${timestamp}] ${ip} ⚠️ 获取Bot信息失败: 缺少或无效的授权头`);
+      console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m \x1b[96m${deviceType}\x1b[0m \x1b[31m⚠️\x1b[0m \x1b[91mno auth\x1b[0m`);
       return res.status(401).json({
         success: false,
         error: {
@@ -320,7 +416,7 @@ app.get('/api/bot/:botId', async (req, res) => {
     
     const botInfo = await cozeClient.getBotInfo(botId, accessToken);
     
-    console.log(`[${timestamp}] ${ip} ✅ 成功获取Bot信息 - botId: ${botId}`);
+    console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m \x1b[96m${deviceType}\x1b[0m \x1b[32m✅\x1b[0m \x1b[90mbot info\x1b[0m`);
     
     res.json({
       success: true,
@@ -328,7 +424,7 @@ app.get('/api/bot/:botId', async (req, res) => {
     });
 
   } catch (error) {
-    console.error(`[${timestamp}] ${ip} ❌ 获取Bot信息失败:`, error.message);
+    console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m \x1b[96m${deviceType}\x1b[0m \x1b[31m❌\x1b[0m \x1b[91m${error.message}\x1b[0m`);
     res.status(500).json({
       success: false,
       error: {
@@ -348,13 +444,15 @@ app.delete('/api/auth/cache', (req, res) => {
   const timestamp = new Date().toISOString();
   const { sessionName, deviceId } = req.body;
   
-  console.log(`[${timestamp}] ${ip} 请求清除缓存 - sessionName: ${sessionName || 'all'}, deviceId: ${deviceId || 'all'}`);
+  const deviceType = getDeviceType(req.headers['user-agent']);
+  
+  console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m \x1b[33m🗑️\x1b[0m \x1b[90m${sessionName || deviceId ? 'specific' : 'all'} device:${deviceType}\x1b[0m`);
   
   if (sessionName || deviceId) {
     const cacheKey = generateCacheKey(sessionName, deviceId);
     const deleted = tokenCache.delete(cacheKey);
     
-    console.log(`[${timestamp}] ${ip} ${deleted ? '✅' : '⚠️'} 缓存清除${deleted ? '成功' : '失败'} - key: ${cacheKey}`);
+    console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m ${deleted ? '\x1b[32m✅' : '\x1b[33m⚠️'}\x1b[0m \x1b[90m${deleted ? 'deleted' : 'not found'} device:${deviceType} key:${cacheKey}\x1b[0m`);
     
     res.json({
       success: true,
@@ -368,7 +466,7 @@ app.delete('/api/auth/cache', (req, res) => {
     const size = tokenCache.size;
     tokenCache.clear();
     
-    console.log(`[${timestamp}] ${ip} ✅ 清除所有缓存成功 - 共清除 ${size} 个缓存项`);
+    console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m \x1b[96m${deviceType}\x1b[0m \x1b[32m✅\x1b[0m \x1b[90mcleared ${size} caches\x1b[0m`);
     
     res.json({
       success: true,
@@ -387,14 +485,15 @@ app.delete('/api/auth/cache', (req, res) => {
 app.get('/api/status', async (req, res) => {
   const ip = getRealIP(req);
   const timestamp = new Date().toISOString();
+  const deviceType = getDeviceType(req.headers['user-agent']);
   
   try {
-    console.log(`[${timestamp}] ${ip} 请求获取服务状态`);
+    console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m \x1b[96m${deviceType}\x1b[0m \x1b[36m📊\x1b[0m \x1b[90mstatus\x1b[0m`);
     
     const connectionTest = await cozeClient.testConnection();
     const config = jwtUtils.getConfig();
     
-    console.log(`[${timestamp}] ${ip} ✅ 服务状态检查完成 - 连接状态: ${connectionTest ? '正常' : '异常'}, 缓存大小: ${tokenCache.size}`);
+    console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m \x1b[96m${deviceType}\x1b[0m ${connectionTest ? '\x1b[32m✅' : '\x1b[31m❌'}\x1b[0m \x1b[90mconn:${connectionTest ? 'ok' : 'fail'} cache:${tokenCache.size}\x1b[0m`);
     
     res.json({
       success: true,
@@ -415,7 +514,7 @@ app.get('/api/status', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error(`[${timestamp}] ${ip} ❌ 获取服务状态失败:`, error.message);
+    console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m \x1b[96m${deviceType}\x1b[0m \x1b[31m❌\x1b[0m \x1b[91m${error.message}\x1b[0m`);
     res.status(500).json({
       success: false,
       error: {
@@ -430,8 +529,9 @@ app.get('/api/status', async (req, res) => {
 app.use('*', (req, res) => {
   const ip = getRealIP(req);
   const timestamp = new Date().toISOString();
+  const deviceType = getDeviceType(req.headers['user-agent']);
   
-  console.log(`[${timestamp}] ${ip} ⚠️ 404 - 接口不存在: ${req.originalUrl}`);
+  console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m \x1b[96m${deviceType}\x1b[0m \x1b[33m❓\x1b[0m \x1b[90m404 ${req.originalUrl}\x1b[0m`);
   
   res.status(404).json({
     success: false,
@@ -447,8 +547,10 @@ app.use((error, req, res, next) => {
   const ip = getRealIP(req);
   const timestamp = new Date().toISOString();
   
-  console.error(`[${timestamp}] ${ip} ❌ 服务器内部错误:`, error.message);
-  console.error(`[${timestamp}] ${ip} 错误堆栈:`, error.stack);
+  console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m \x1b[31m💥\x1b[0m \x1b[91m${error.message}\x1b[0m`);
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m \x1b[90mstack:\x1b[0m`, error.stack);
+  }
   
   res.status(500).json({
     success: false,
@@ -462,25 +564,21 @@ app.use((error, req, res, next) => {
 // 启动服务器
 app.listen(PORT, () => {
   const config = jwtUtils.getConfig();
-  const timestamp = new Date().toISOString();
   
-  console.log(`[${timestamp}] 🚀 FireChat-CozeSDK 服务器启动成功`);
-  console.log(`[${timestamp}] 📍 服务地址: http://localhost:${PORT}`);
-  console.log(`[${timestamp}] 🔧 环境: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`[${timestamp}] 🌐 Coze API端点: ${config.coze_api_base}`);
-  console.log(`[${timestamp}] 📋 配置文件: config/coze.json, config/server.json`);
-  console.log(`[${timestamp}] 📊 日志功能: 已启用 (包含IP地址、时间戳、请求详情)`);
+  console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[32m🚀\x1b[0m \x1b[97mFireChat-CozeSDK\x1b[0m \x1b[90mstarted\x1b[0m`);
+  console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[36m📍\x1b[0m \x1b[97mhttp://localhost:${PORT}\x1b[0m`);
+  console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[33m🔧\x1b[0m \x1b[90m${process.env.NODE_ENV || 'development'}\x1b[0m`);
+  console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[34m🌐\x1b[0m \x1b[90m${config.coze_api_base}\x1b[0m`);
+  console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[35m📊\x1b[0m \x1b[90mcolorful logs enabled\x1b[0m`);
 });
 
 // 优雅关闭
 process.on('SIGTERM', () => {
-  const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] 🛑 收到SIGTERM信号，正在关闭服务器...`);
+  console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[31m🛑\x1b[0m \x1b[90mSIGTERM shutdown\x1b[0m`);
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
-  const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] 🛑 收到SIGINT信号，正在关闭服务器...`);
+  console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[31m🛑\x1b[0m \x1b[90mSIGINT shutdown\x1b[0m`);
   process.exit(0);
 });
