@@ -9,8 +9,8 @@ const ConfigManager = require('./config');
 const Logger = require('./logger');
 const MiddlewareManager = require('./middleware');
 const ApiRoutes = require('./routes');
-const JWTUtils = require('../utils/JWTUtils');
-const CozeClient = require('../utils/CozeClient');
+const JWTUtils = require('../utils/jwtUtils');
+const CozeClient = require('../utils/cozeClient');
 
 class FireChatApp {
   constructor() {
