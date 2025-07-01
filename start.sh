@@ -83,9 +83,14 @@ main() {
     # 启动服务
     if [ "$1" = "dev" ] || [ "$1" = "development" ]; then
         print_message "🔧 开发模式启动" "$YELLOW"
+        export NODE_ENV=development
         npm run dev
-    else
+    elif [ "$1" = "prod" ] || [ "$1" = "production" ]; then
         print_message "🏭 生产模式启动" "$GREEN"
+        export NODE_ENV=production
+        npm start
+    else
+        print_message "🏭 默认模式启动" "$GREEN"
         npm start
     fi
 }
@@ -98,12 +103,14 @@ show_help() {
     echo "  ./start.sh [模式]"
     echo
     echo "模式:"
-    echo "  dev, development    开发模式 (使用 nodemon)"
-    echo "  (默认)              生产模式"
+    echo "  dev, development    开发模式 (使用 nodemon，NODE_ENV=development)"
+    echo "  prod, production    生产模式 (NODE_ENV=production)"
+    echo "  (默认)              默认模式 (使用配置文件中的环境设置)"
     echo
     echo "示例:"
-    echo "  ./start.sh          # 生产模式启动"
+    echo "  ./start.sh          # 默认模式启动"
     echo "  ./start.sh dev      # 开发模式启动"
+    echo "  ./start.sh prod     # 生产模式启动"
     echo
 }
 

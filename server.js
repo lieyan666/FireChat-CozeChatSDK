@@ -11,28 +11,61 @@ const CozeClient = require('./utils/cozeClient');
 function loadServerConfig() {
   const configPath = path.join(__dirname, 'config/server.json');
   
+  // 默认配置
+  const defaultConfig = {
+    environment: 'development',
+    port: 3000,
+    cors: {
+      allowed_origins: [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'http://localhost:8080',
+        'http://127.0.0.1:8080'
+      ],
+      credentials: true
+    },
+    cache: {
+      token_ttl_minutes: 55,
+      max_cache_size: 1000
+    },
+    logging: {
+      level: 'info',
+      enable_request_logging: true
+    }
+  };
+  
   if (!fs.existsSync(configPath)) {
     console.warn('⚠️ 服务器配置文件不存在，使用默认配置');
-    return {
-      port: 3000,
-      cors: {
-        allowed_origins: [
-          'http://localhost:3000',
-          'http://127.0.0.1:3000',
-          'http://localhost:8080',
-          'http://127.0.0.1:8080'
-        ],
-        credentials: true
-      }
-    };
+    return defaultConfig;
   }
   
+  let config;
   try {
-    return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
   } catch (error) {
     console.error('❌ 服务器配置文件解析失败:', error.message);
     process.exit(1);
   }
+  
+  // 获取环境变量，优先级：环境变量 > 配置文件 > 默认值
+  const environment = process.env.NODE_ENV || config.environment || defaultConfig.environment;
+  
+  // 如果是生产环境且配置文件中有生产环境配置，则合并配置
+  if (environment === 'production' && config.production) {
+    config = {
+      ...config,
+      ...config.production,
+      environment: 'production'
+    };
+  }
+  
+  // 设置环境变量
+  process.env.NODE_ENV = environment;
+  
+  return {
+    ...defaultConfig,
+    ...config
+  };
 }
 
 const serverConfig = loadServerConfig();
@@ -614,12 +647,21 @@ app.use((error, req, res, next) => {
 // 启动服务器
 app.listen(PORT, () => {
   const config = jwtUtils.getConfig();
+  const environment = serverConfig.environment || process.env.NODE_ENV || 'development';
+  const isProduction = environment === 'production';
   
   console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[32m🚀\x1b[0m \x1b[97mFireChat-CozeSDK\x1b[0m \x1b[90mstarted\x1b[0m`);
   console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[36m📍\x1b[0m \x1b[97mhttp://localhost:${PORT}\x1b[0m`);
-  console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[33m🔧\x1b[0m \x1b[90m${process.env.NODE_ENV || 'development'}\x1b[0m`);
+  console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[33m🔧\x1b[0m \x1b[90m${environment}${isProduction ? ' (生产环境)' : ' (开发环境)'}\x1b[0m`);
   console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[34m🌐\x1b[0m \x1b[90m${config.coze_api_base}\x1b[0m`);
   console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[35m📊\x1b[0m \x1b[90mcolorful logs enabled\x1b[0m`);
+  
+  if (isProduction) {
+    console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[32m✅\x1b[0m \x1b[90mOTA更新功能已启用\x1b[0m`);
+    console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[36m🔗\x1b[0m \x1b[90mOTA管理界面: http://localhost:${PORT}/ota/\x1b[0m`);
+  } else {
+    console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[33m⚠️\x1b[0m \x1b[90mOTA更新功能仅在生产环境下可用\x1b[0m`);
+  }
 });
 
 // 优雅关闭

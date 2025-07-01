@@ -1,4 +1,5 @@
 {
+  "environment": "development",
   "port": 3000,
   "cors": {
     "allowed_origins": [
@@ -16,5 +17,23 @@
   "logging": {
     "level": "info",
     "enable_request_logging": true
+  },
+  "production": {
+    "port": 8080,
+    "cors": {
+      "allowed_origins": [
+        "https://yourdomain.com",
+        "https://www.yourdomain.com"
+      ],
+      "credentials": true
+    },
+    "cache": {
+      "token_ttl_minutes": 120,
+      "max_cache_size": 5000
+    },
+    "logging": {
+      "level": "warn",
+      "enable_request_logging": false
+    }
   }
 }
