@@ -57,6 +57,15 @@ main() {
         exit 1
     fi
     
+    print_message "🔄 正在拉取最新代码..." "$YELLOW"
+    git pull
+    if [ $? -eq 0 ]; then
+        print_message "✅ 代码拉取成功" "$GREEN"
+    else
+        print_message "❌ 代码拉取失败" "$RED"
+        exit 1
+    fi
+
     # 强制安装/更新依赖（OTA更新需要）
     print_message "📦 正在安装/更新依赖..." "$YELLOW"
     npm install
@@ -64,15 +73,6 @@ main() {
         print_message "✅ 依赖安装/更新成功" "$GREEN"
     else
         print_message "❌ 依赖安装/更新失败" "$RED"
-        exit 1
-    fi
-    
-    print_message "🔄 正在拉取最新代码..." "$YELLOW"
-    git pull
-    if [ $? -eq 0 ]; then
-        print_message "✅ 代码拉取成功" "$GREEN"
-    else
-        print_message "❌ 代码拉取失败" "$RED"
         exit 1
     fi
     
