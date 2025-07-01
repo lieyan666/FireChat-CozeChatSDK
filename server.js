@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const { spawn } = require('child_process');
 
 const JWTUtils = require('./utils/jwtUtils');
 const CozeClient = require('./utils/cozeClient');
@@ -523,6 +524,55 @@ app.get('/api/status', async (req, res) => {
       }
     });
   }
+});
+
+/**
+ * OTA更新 (仅在production模式下可用)
+ * POST /api/update
+ */
+app.post('/api/update', (req, res) => {
+  const ip = getRealIP(req);
+  const deviceType = getDeviceType(req.headers['user-agent']);
+  
+  // 只在production模式下允许OTA更新
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m \x1b[96m${deviceType}\x1b[0m \x1b[33m⚠️\x1b[0m \x1b[91mOTA disabled in dev mode\x1b[0m`);
+    return res.status(403).json({
+      success: false,
+      error: {
+        message: 'OTA更新仅在生产模式下可用',
+        code: 'ota_disabled_in_dev'
+      }
+    });
+  }
+  
+  console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[94m${ip}\x1b[0m \x1b[96m${deviceType}\x1b[0m \x1b[33m🔄\x1b[0m \x1b[90mOTA update triggered\x1b[0m`);
+  
+  // 立即返回响应
+  res.json({
+    success: true,
+    data: {
+      message: 'OTA更新已启动，服务将在几秒钟后重启',
+      timestamp: new Date().toISOString()
+    }
+  });
+  
+  // 延迟执行更新，确保响应已发送
+   setTimeout(() => {
+     console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[33m🔄\x1b[0m \x1b[90mStarting OTA update process...\x1b[0m`);
+     
+     // 执行更新脚本
+     const updateProcess = spawn('bash', ['start.sh'], {
+       detached: true,
+       stdio: 'inherit'
+     });
+     
+     updateProcess.unref();
+     
+     // 关闭当前进程
+     console.log(`\x1b[90m${formatTime()}\x1b[0m \x1b[31m🛑\x1b[0m \x1b[90mOTA shutdown for update\x1b[0m`);
+     process.exit(0);
+   }, 1000);
 });
 
 // 404处理

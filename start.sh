@@ -57,18 +57,14 @@ main() {
         exit 1
     fi
     
-    # 检查 node_modules
-    if [ ! -d "node_modules" ]; then
-        print_message "📦 正在安装依赖..." "$YELLOW"
-        npm install
-        if [ $? -eq 0 ]; then
-            print_message "✅ 依赖安装成功" "$GREEN"
-        else
-            print_message "❌ 依赖安装失败" "$RED"
-            exit 1
-        fi
+    # 强制安装/更新依赖（OTA更新需要）
+    print_message "📦 正在安装/更新依赖..." "$YELLOW"
+    npm install
+    if [ $? -eq 0 ]; then
+        print_message "✅ 依赖安装/更新成功" "$GREEN"
     else
-        print_message "✅ 依赖已安装" "$GREEN"
+        print_message "❌ 依赖安装/更新失败" "$RED"
+        exit 1
     fi
     
     print_message "🔄 正在拉取最新代码..." "$YELLOW"

@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OTA更新管理 - FireChat CozeSDK</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+
+        .status {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-left: 4px solid #28a745;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .status-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .status-label {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .status-value {
+            color: #666;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 14px;
+        }
+
+        .update-btn {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        .update-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(255, 107, 107, 0.3);
+        }
+
+        .update-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 15px;
+            color: #856404;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+        .log {
+            background: #1e1e1e;
+            color: #fff;
+            border-radius: 8px;
+            padding: 15px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            text-align: left;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .log.show {
+            display: block;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🔄</div>
+        <h1>OTA更新管理</h1>
+        <p class="subtitle">FireChat CozeSDK 服务端更新</p>
+        
+        <div class="status">
+            <div class="status-item">
+                <span class="status-label">服务状态:</span>
+                <span class="status-value" id="serviceStatus">检查中...</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">运行模式:</span>
+                <span class="status-value" id="runMode">-</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">缓存大小:</span>
+                <span class="status-value" id="cacheSize">-</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">最后检查:</span>
+                <span class="status-value" id="lastCheck">-</span>
+            </div>
+        </div>
+
+        <div class="warning">
+            ⚠️ <strong>注意:</strong> OTA更新仅在生产模式下可用。更新过程中服务将短暂中断。
+        </div>
+
+        <button class="update-btn" id="updateBtn" onclick="triggerUpdate()">
+            🚀 执行OTA更新
+        </button>
+
+        <button class="update-btn" onclick="checkStatus()" style="background: linear-gradient(135deg, #74b9ff, #0984e3);">
+            📊 刷新状态
+        </button>
+
+        <div class="log" id="updateLog"></div>
+    </div>
+
+    <script>
+        let updateInProgress = false;
+
+        // 检查服务状态
+        async function checkStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('serviceStatus').textContent = '🟢 运行中';
+                    document.getElementById('runMode').textContent = data.data.status;
+                    document.getElementById('cacheSize').textContent = data.data.cache_size + ' 个';
+                    document.getElementById('lastCheck').textContent = new Date().toLocaleTimeString();
+                } else {
+                    document.getElementById('serviceStatus').textContent = '🔴 异常';
+                }
+            } catch (error) {
+                document.getElementById('serviceStatus').textContent = '🔴 连接失败';
+                console.error('状态检查失败:', error);
+            }
+        }
+
+        // 触发OTA更新
+        async function triggerUpdate() {
+            if (updateInProgress) return;
+            
+            if (!confirm('确定要执行OTA更新吗？服务将重启，可能需要几分钟时间。')) {
+                return;
+            }
+
+            updateInProgress = true;
+            const btn = document.getElementById('updateBtn');
+            const log = document.getElementById('updateLog');
+            
+            btn.disabled = true;
+            btn.innerHTML = '<div class="loading"></div>正在更新...';
+            log.classList.add('show');
+            
+            addLog('🔄 开始OTA更新...');
+            
+            try {
+                const response = await fetch('/api/update', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    addLog('✅ 更新请求已发送');
+                    addLog('⏳ 服务正在重启，请稍候...');
+                    
+                    // 等待服务重启
+                    setTimeout(() => {
+                        addLog('🔍 检查服务状态...');
+                        waitForService();
+                    }, 3000);
+                } else {
+                    addLog('❌ 更新失败: ' + data.error.message);
+                    resetButton();
+                }
+            } catch (error) {
+                addLog('❌ 更新请求失败: ' + error.message);
+                resetButton();
+            }
+        }
+
+        // 等待服务恢复
+        async function waitForService() {
+            let attempts = 0;
+            const maxAttempts = 30;
+            
+            const checkService = async () => {
+                attempts++;
+                addLog(`🔍 尝试连接服务 (${attempts}/${maxAttempts})...`);
+                
+                try {
+                    const response = await fetch('/api/status');
+                    if (response.ok) {
+                        addLog('🎉 服务已恢复！OTA更新完成');
+                        resetButton();
+                        checkStatus();
+                        return;
+                    }
+                } catch (error) {
+                    // 服务还未恢复
+                }
+                
+                if (attempts < maxAttempts) {
+                    setTimeout(checkService, 2000);
+                } else {
+                    addLog('⚠️ 服务恢复超时，请手动检查');
+                    resetButton();
+                }
+            };
+            
+            checkService();
+        }
+
+        // 添加日志
+        function addLog(message) {
+            const log = document.getElementById('updateLog');
+            const time = new Date().toLocaleTimeString();
+            log.innerHTML += `[${time}] ${message}\n`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // 重置按钮状态
+        function resetButton() {
+            updateInProgress = false;
+            const btn = document.getElementById('updateBtn');
+            btn.disabled = false;
+            btn.innerHTML = '🚀 执行OTA更新';
+        }
+
+        // 页面加载时检查状态
+        window.onload = function() {
+            checkStatus();
+        };
+    </script>
+</body>
+</html>
