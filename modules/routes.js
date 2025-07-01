@@ -34,6 +34,9 @@ class ApiRoutes {
     // 状态相关路由
     this.router.get('/api/status', this.handleStatus.bind(this));
     
+    // 应用信息路由
+    this.router.get('/api/app-info', this.handleAppInfo.bind(this));
+    
     // OTA更新路由
     this.router.post('/api/update', this.handleOtaUpdate.bind(this));
   }
@@ -289,6 +292,61 @@ class ApiRoutes {
       } else {
         res.status(500).json({ error: '获取机器人信息失败', details: error.message });
       }
+    }
+  }
+
+  /**
+   * 获取应用信息
+   */
+  async handleAppInfo(req, res) {
+    try {
+      this.logger.api(req, '应用信息请求');
+      
+      // 获取配置中的应用信息
+      const config = this.configManager.getServerConfig();
+      const appInfo = config.app_info || {
+        author: 'Unknown',
+        wechat_id: 'Unknown',
+        feedback_note: '反馈'
+      };
+      
+      // 获取git版本信息
+      let gitVersion = 'unknown';
+      try {
+        const { execSync } = require('child_process');
+        gitVersion = execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
+      } catch (error) {
+        this.logger.warn('无法获取git版本信息:', error.message);
+      }
+      
+      // 获取package.json版本
+      let packageVersion = 'unknown';
+      try {
+        const packageJson = require('../package.json');
+        packageVersion = packageJson.version;
+      } catch (error) {
+        this.logger.warn('无法获取package版本信息:', error.message);
+      }
+      
+      res.json({
+        success: true,
+        data: {
+          author: appInfo.author,
+          wechat_id: appInfo.wechat_id,
+          feedback_note: appInfo.feedback_note,
+          version: packageVersion,
+          git_version: gitVersion,
+          timestamp: new Date().toISOString()
+        }
+      });
+      
+    } catch (error) {
+      this.logger.error('获取应用信息失败:', error);
+      res.status(500).json({ 
+        success: false,
+        error: '获取应用信息失败',
+        details: error.message 
+      });
     }
   }
 

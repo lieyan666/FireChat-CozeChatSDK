@@ -18,6 +18,11 @@
     "level": "info",
     "enable_request_logging": true
   },
+  "app_info": {
+    "author": "Your Name",
+    "wechat_id": "YourWeChatID",
+    "feedback_note": "宇文老师反馈"
+  },
   "production": {
     "port": 8080,
     "cors": {
