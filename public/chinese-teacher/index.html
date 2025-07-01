@@ -153,6 +153,65 @@
             border: 1px solid #b8e2ff;
         }
 
+        .session-banner {
+            position: fixed;
+            top: -100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 0 0 12px 12px;
+            box-shadow: 0 4px 20px rgba(40, 167, 69, 0.3);
+            font-size: 14px;
+            z-index: 1000;
+            min-width: 300px;
+            text-align: center;
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .session-banner.show {
+            top: 0;
+        }
+
+        .session-banner.hide {
+            top: -100px;
+            opacity: 0;
+        }
+
+        .session-banner .ttl {
+            font-weight: 600;
+            margin-bottom: 5px;
+            font-size: 15px;
+        }
+
+        .session-banner .refresh-tip {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        @keyframes slideDown {
+            from {
+                top: -100px;
+                opacity: 0;
+            }
+            to {
+                top: 0;
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideUp {
+            from {
+                top: 0;
+                opacity: 1;
+            }
+            to {
+                top: -100px;
+                opacity: 0;
+            }
+        }
+
         .chat-container {
             display: none;
             margin-top: 30px;
@@ -243,6 +302,11 @@
 
         <div class="status" id="status"></div>
 
+        <div class="session-banner" id="sessionBanner">
+            <div class="ttl" id="ttlDisplay"></div>
+            <div class="refresh-tip">如遇到问题请刷新页面重新连接</div>
+        </div>
+
         <div class="chat-container" id="chatContainer">
             <div class="chat-header">
                 <span id="studentInfo"></span>
@@ -268,6 +332,8 @@
     <script>
         let chatClient = null;
         let currentToken = null;
+        let tokenExpiresIn = null;
+        let connectionTime = null;
 
         // 验证学号格式
         function validateStudentId(studentId) {
@@ -285,6 +351,58 @@
         // 隐藏状态信息
         function hideStatus() {
             document.getElementById('status').style.display = 'none';
+        }
+
+        // 显示会话横幅
+        function showSessionInfo() {
+            if (tokenExpiresIn && connectionTime) {
+                const ttlMinutes = Math.floor(tokenExpiresIn / 60);
+                const ttlDisplay = document.getElementById('ttlDisplay');
+                const sessionBanner = document.getElementById('sessionBanner');
+                
+                ttlDisplay.textContent = `会话有效时间：${ttlMinutes}分钟`;
+                
+                // 显示横幅动画
+                sessionBanner.classList.add('show');
+                
+                // 5秒后自动关闭
+                setTimeout(() => {
+                    sessionBanner.classList.remove('show');
+                    sessionBanner.classList.add('hide');
+                }, 5000);
+                
+                // 启动倒计时更新
+                updateTTLCountdown();
+            }
+        }
+
+        // 更新TTL倒计时
+        function updateTTLCountdown() {
+            if (!tokenExpiresIn || !connectionTime) return;
+            
+            const elapsed = Math.floor((Date.now() - connectionTime) / 1000);
+            const remaining = tokenExpiresIn - elapsed;
+            
+            if (remaining > 0) {
+                const remainingMinutes = Math.floor(remaining / 60);
+                const remainingSeconds = remaining % 60;
+                const ttlDisplay = document.getElementById('ttlDisplay');
+                
+                if (remainingMinutes > 0) {
+                    ttlDisplay.textContent = `会话剩余时间：${remainingMinutes}分${remainingSeconds}秒`;
+                } else {
+                    ttlDisplay.textContent = `会话剩余时间：${remainingSeconds}秒`;
+                    ttlDisplay.style.color = '#dc3545'; // 红色警告
+                }
+                
+                // 每秒更新一次
+                setTimeout(updateTTLCountdown, 1000);
+            } else {
+                // 会话已过期
+                const ttlDisplay = document.getElementById('ttlDisplay');
+                ttlDisplay.textContent = '会话已过期，请刷新页面重新连接';
+                ttlDisplay.style.color = '#dc3545';
+            }
         }
 
         // 获取访问令牌
@@ -311,6 +429,10 @@
                 if (!result.success) {
                     throw new Error(result.error?.message || '获取访问令牌失败');
                 }
+
+                // 保存TTL信息
+                tokenExpiresIn = result.data.expires_in;
+                connectionTime = Date.now();
 
                 return result.data.access_token;
             } catch (error) {
@@ -420,6 +542,9 @@
 
                 // 显示成功状态
                 showStatus('连接成功！开始您的学习之旅吧！', 'success');
+
+                // 显示会话信息
+                showSessionInfo();
 
                 // 更新界面
                 studentInfo.textContent = `学号: ${studentId} - 语文智能助教`;
