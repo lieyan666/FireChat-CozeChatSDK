@@ -1,7 +1,7 @@
 {
   "name": "firechat-coze-chat-sdk",
-  "version": "1.2.2",
-  "description": "基于Coze OAuth JWT鉴权的Chat SDK后端服务",
+  "version": "1.2.4",
+  "description": "基于Coze OAuth JWT鉴权的Chat SDK后端服务及配套网页",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -24,6 +24,6 @@
     "jwt",
     "express"
   ],
-  "author": "FireChat Team",
-  "license": "MIT"
+  "author": "lieyan666",
+  "license": "GPL-3.0-only"
 }
