@@ -108,7 +108,7 @@ npm install
 - `port`: 服务器端口号
 - `cors.allowed_origins`: 允许的跨域源
 - `cors.credentials`: 是否允许携带凭证
-- `cache.token_ttl_minutes`: 令牌缓存时间（分钟）
+- `cache.token_ttl_minutes`: 令牌缓存时间参考值（分钟），实际缓存时长基于服务端返回的过期时间动态调整
 - `cache.max_cache_size`: 最大缓存数量
 - `logging.level`: 日志级别
 - `logging.enable_request_logging`: 是否启用请求日志
@@ -312,6 +312,12 @@ const jwtUtils = new JWTUtils('/path/to/custom/coze.json');
 ```
 
 ### 缓存策略
+
+**智能缓存策略**：
+- 系统会根据服务端返回的token过期时间动态调整缓存时长
+- 自动减去5分钟安全边界，确保token在缓存过期前不会失效
+- 最少缓存1分钟，避免频繁请求
+- 配置文件中的`token_ttl_minutes`仅作为参考值
 
 ```javascript
 // 生产环境建议使用 Redis

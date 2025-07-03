@@ -135,11 +135,17 @@ class ApiRoutes {
         // 如果令牌还有5分钟以上有效期，直接返回缓存
         if (timeUntilExpiry > 5 * 60 * 1000) {
           this.logger.info(`返回缓存的访问令牌，剩余有效期: ${Math.round(timeUntilExpiry / 60000)}分钟`);
+          this.logger.info(`Token过期时间（东八区）: ${cached.expires_at_beijing}`);
+          
+          // 返回原始的expires_in值，保持与API一致
+          const originalExpiresIn = cached.original_expires_in || Math.floor(timeUntilExpiry / 1000);
+          
           return res.json({
             success: true,
             data: {
               access_token: cached.access_token,
-              expires_in: Math.floor(timeUntilExpiry / 1000),
+              expires_in: originalExpiresIn, // 使用原始的过期时间
+              expires_at_beijing: cached.expires_at_beijing, // 东八区时间
               from_cache: true
             }
           });
@@ -161,8 +167,18 @@ class ApiRoutes {
         tokenData = await this.cozeClient.jwtUtils.generateJWT(sessionName, { deviceId, consumer });
       }
       
-      // 缓存令牌
-      const expiresAt = Date.now() + (cacheConfig.token_ttl_minutes * 60 * 1000);
+      // 记录服务端返回的过期时间信息（现在是相对秒数）
+      const serverExpiresIn = tokenData.expires_in;
+      const expiresAtBeijing = tokenData.expires_at_beijing;
+      const expiresTimestamp = tokenData.expires_timestamp;
+      
+      this.logger.info(`服务端返回token过期时间: ${serverExpiresIn}秒 (${Math.round(serverExpiresIn / 60)}分钟)`);
+      this.logger.info(`Token过期时间（东八区）: ${expiresAtBeijing}`);
+      
+      // 使用相对秒数计算缓存过期时间，减去安全边界
+      const safetyMarginSeconds = 5 * 60; // 5分钟安全边界（秒）
+      const safeCacheSeconds = Math.max(60, serverExpiresIn - safetyMarginSeconds); // 最少缓存1分钟
+      const actualExpiresAt = Date.now() + (safeCacheSeconds * 1000);
       
       // 检查缓存大小限制
       if (this.tokenCache.size >= cacheConfig.max_cache_size) {
@@ -172,19 +188,25 @@ class ApiRoutes {
         this.logger.info('缓存已满，清除最旧的令牌');
       }
       
+      // 缓存token
       this.tokenCache.set(cacheKey, {
         access_token: tokenData.access_token,
-        expires_at: expiresAt,
-        created_at: Date.now()
+        expires_at: actualExpiresAt,
+        created_at: Date.now(),
+        original_expires_in: serverExpiresIn,
+        expires_at_beijing: expiresAtBeijing,
+        expires_timestamp: expiresTimestamp
       });
       
-      this.logger.success(`成功获取访问令牌，缓存${cacheConfig.token_ttl_minutes}分钟`);
+      this.logger.success(`成功获取访问令牌，有效期${Math.round(serverExpiresIn / 60)}分钟，缓存${Math.round(safeCacheSeconds / 60)}分钟`);
       
+      // 返回相对秒数给客户端
       res.json({
         success: true,
         data: {
           access_token: tokenData.access_token,
-          expires_in: cacheConfig.token_ttl_minutes * 60,
+          expires_in: serverExpiresIn, // 返回相对秒数
+          expires_at_beijing: expiresAtBeijing, // 东八区时间
           from_cache: false
         }
       });
@@ -479,7 +501,8 @@ class ApiRoutes {
     const stats = {
       size: this.tokenCache.size,
       max_size: cacheConfig.max_cache_size,
-      ttl_minutes: cacheConfig.token_ttl_minutes,
+      cache_strategy: '基于服务端过期时间动态调整',
+      safety_margin_minutes: 5,
       entries: []
     };
     

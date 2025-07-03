@@ -61,14 +61,34 @@ class JWTUtils {
                 keyid: this.config.public_key_id,
                 privateKey: this.config.private_key,
                 sessionName: sessionName,
-                sessionContext: sessionContext
+                sessionContext: sessionContext,
+                duration_seconds: 3600  // 设置token有效期为1小时（3600秒）
             });
+
+            // API返回的expires_in是Unix时间戳，需要转换为相对秒数
+            const currentTimestamp = Math.floor(Date.now() / 1000); // 当前时间戳（秒）
+            const expiresTimestamp = oauthToken.expires_in; // API返回的过期时间戳
+            const relativeExpiresIn = Math.max(0, expiresTimestamp - currentTimestamp); // 转换为相对秒数
+            
+            // 转换为东八区时间用于日志显示
+            const expiresAtBeijing = new Date(expiresTimestamp * 1000).toLocaleString('zh-CN', {
+                timeZone: 'Asia/Shanghai',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            
+            console.log(`Token过期时间戳: ${expiresTimestamp}, 东八区时间: ${expiresAtBeijing}, 相对有效期: ${relativeExpiresIn}秒`);
 
             return {
                 access_token: oauthToken.access_token,
                 token_type: oauthToken.token_type,
-                expires_in: oauthToken.expires_in,
-                expires_at: new Date(oauthToken.expires_in * 1000).toISOString()
+                expires_in: relativeExpiresIn, // 返回相对秒数
+                expires_at_beijing: expiresAtBeijing, // 东八区时间字符串
+                expires_timestamp: expiresTimestamp // 原始时间戳
             };
         } catch (error) {
             throw new Error(`Failed to generate JWT token: ${error.message}`);
