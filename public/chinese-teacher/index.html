@@ -460,7 +460,7 @@
 
         <div class="input-group">
             <label for="studentId">学号</label>
-            <input type="text" id="studentId" placeholder="请输入6位学号" maxlength="6" pattern="[0-9]{6}">
+            <input type="text" id="studentId" placeholder="23xxxx" maxlength="10" pattern="[0-9]{6,10}" autocomplete="off">
         </div>
 
         <button class="connect-btn" id="connectBtn" onclick="connectToBot()">连接</button>
@@ -484,7 +484,7 @@
         <div class="tips">
             <h3>使用提示</h3>
             <ul>
-                <li>输入6位数字学号</li>
+                <li>输入学号（6-10位数字）</li>
                 <li>点击"连接"连接助教</li>
                 <li>询问语文学习相关问题</li>
             </ul>
@@ -528,7 +528,7 @@
 
         // 验证学号格式
         function validateStudentId(studentId) {
-            return /^[0-9]{6}$/.test(studentId);
+            return /^[0-9]{6,10}$/.test(studentId);
         }
 
         // 显示状态信息
@@ -573,12 +573,14 @@
             
             const elapsed = Math.floor((Date.now() - connectionTime) / 1000);
             const remaining = tokenExpiresIn - elapsed;
+            const sessionBanner = document.getElementById('sessionBanner');
+            const ttlDisplay = document.getElementById('ttlDisplay');
             
             if (remaining > 0) {
                 const remainingMinutes = Math.floor(remaining / 60);
                 const remainingSeconds = remaining % 60;
-                const ttlDisplay = document.getElementById('ttlDisplay');
                 
+                // 显示剩余时间
                 if (remainingMinutes > 0) {
                     ttlDisplay.textContent = `会话剩余时间：${remainingMinutes}分${remainingSeconds}秒`;
                 } else {
@@ -586,13 +588,75 @@
                     ttlDisplay.style.color = '#dc3545'; // 红色警告
                 }
                 
+                // 当剩余时间小于3分钟时，显示提醒
+                if (remainingMinutes < 3 && !sessionBanner.classList.contains('show')) {
+                    sessionBanner.classList.remove('hide');
+                    sessionBanner.classList.add('show');
+                    sessionBanner.style.background = 'linear-gradient(135deg, #ff9800 0%, #ff5722 100%)';
+                    const refreshTip = sessionBanner.querySelector('.refresh-tip');
+                    refreshTip.innerHTML = '请点击<button onclick="refreshToken()" style="background: #fff; color: #ff5722; border: none; border-radius: 4px; padding: 2px 8px; margin: 0 5px; cursor: pointer; font-weight: bold;">刷新</button>按钮更新会话';
+                }
+                
+                // 当剩余时间小于1分钟时，自动刷新token
+                if (remainingMinutes === 0 && remainingSeconds <= 60) {
+                    ttlDisplay.textContent = `会话即将过期，正在自动刷新...`;
+                    refreshToken();
+                    return; // 停止倒计时，避免重复刷新
+                }
+                
                 // 每秒更新一次
                 setTimeout(updateTTLCountdown, 1000);
             } else {
                 // 会话已过期
-                const ttlDisplay = document.getElementById('ttlDisplay');
                 ttlDisplay.textContent = '会话已过期，请刷新页面重新连接';
                 ttlDisplay.style.color = '#dc3545';
+                sessionBanner.classList.remove('hide');
+                sessionBanner.classList.add('show');
+                sessionBanner.style.background = 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)';
+            }
+        }
+        
+        // 刷新token
+        async function refreshToken() {
+            try {
+                const studentId = document.getElementById('studentId').value.trim();
+                if (!validateStudentId(studentId)) {
+                    showStatus('学号格式不正确，无法刷新会话', 'error');
+                    return;
+                }
+                
+                showStatus('正在刷新会话...', 'loading');
+                
+                // 获取新的访问令牌
+                currentToken = await getAccessToken(studentId);
+                
+                // 更新会话信息
+                connectionTime = Date.now();
+                
+                // 重置会话横幅样式
+                const sessionBanner = document.getElementById('sessionBanner');
+                sessionBanner.style.background = 'linear-gradient(135deg, #28a745 0%, #20c997 100%)';
+                const refreshTip = sessionBanner.querySelector('.refresh-tip');
+                refreshTip.textContent = '如遇到问题请刷新页面重新连接';
+                
+                // 显示成功状态
+                showStatus('会话已成功刷新！', 'success');
+                
+                // 3秒后隐藏状态和横幅
+                setTimeout(() => {
+                    hideStatus();
+                    sessionBanner.classList.remove('show');
+                    sessionBanner.classList.add('hide');
+                }, 3000);
+                
+                // 重新启动倒计时
+                updateTTLCountdown();
+                
+                return true;
+            } catch (error) {
+                console.error('刷新会话失败:', error);
+                showStatus(`刷新会话失败: ${error.message}`, 'error');
+                return false;
             }
         }
 
@@ -714,7 +778,7 @@
 
             // 验证学号
             if (!validateStudentId(studentId)) {
-                showStatus('请输入正确的6位数字学号', 'error');
+                showStatus('请输入正确的学号（6-10位数字）', 'error');
                 return;
             }
 
@@ -723,6 +787,9 @@
             showStatus('正在连接宇文老师...', 'loading');
 
             try {
+                // 保存学号到本地存储
+                saveStudentId(studentId);
+                
                 // 获取访问令牌
                 showStatus('正在获取访问权限...', 'loading');
                 currentToken = await getAccessToken(studentId);
@@ -832,10 +899,25 @@
             }
         });
 
-        // 页面加载完成后自动聚焦到学号输入框
+        // 页面加载完成后自动聚焦到学号输入框并加载记忆的学号
         window.addEventListener('load', function () {
-            document.getElementById('studentId').focus();
+            const studentIdInput = document.getElementById('studentId');
+            
+            // 从localStorage加载之前输入的学号
+            const savedStudentId = localStorage.getItem('studentId');
+            if (savedStudentId && validateStudentId(savedStudentId)) {
+                studentIdInput.value = savedStudentId;
+            }
+            
+            studentIdInput.focus();
         });
+
+        // 保存学号到localStorage
+        function saveStudentId(studentId) {
+            if (validateStudentId(studentId)) {
+                localStorage.setItem('studentId', studentId);
+            }
+        }
 
         // 打开反馈弹窗
         function openFeedbackModal() {
