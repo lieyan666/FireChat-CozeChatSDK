@@ -137,14 +137,14 @@ class ApiRoutes {
           this.logger.info(`返回缓存的访问令牌，剩余有效期: ${Math.round(timeUntilExpiry / 60000)}分钟`);
           this.logger.info(`Token过期时间（东八区）: ${cached.expires_at_beijing}`);
           
-          // 返回原始的expires_in值，保持与API一致
-          const originalExpiresIn = cached.original_expires_in || Math.floor(timeUntilExpiry / 1000);
+          // 返回实际剩余时间（秒）
+          const actualRemainingSeconds = Math.floor(timeUntilExpiry / 1000);
           
           return res.json({
             success: true,
             data: {
               access_token: cached.access_token,
-              expires_in: originalExpiresIn, // 使用原始的过期时间
+              expires_in: actualRemainingSeconds, // 返回实际剩余秒数
               expires_at_beijing: cached.expires_at_beijing, // 东八区时间
               from_cache: true
             }
@@ -176,7 +176,7 @@ class ApiRoutes {
       this.logger.info(`Token过期时间（东八区）: ${expiresAtBeijing}`);
       
       // 使用相对秒数计算缓存过期时间，减去安全边界
-      const safetyMarginSeconds = 5 * 60; // 5分钟安全边界（秒）
+      const safetyMarginSeconds = 3 * 60; // 3分钟安全边界（秒）
       const safeCacheSeconds = Math.max(60, serverExpiresIn - safetyMarginSeconds); // 最少缓存1分钟
       const actualExpiresAt = Date.now() + (safeCacheSeconds * 1000);
       
