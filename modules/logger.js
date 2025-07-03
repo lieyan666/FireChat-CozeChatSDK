@@ -136,12 +136,17 @@ class Logger {
     }
     
     // 检查各种可能的代理头
+    const aliRealClientIP = req.headers['ali-real-client-ip']; // 阿里云ESA
     const forwarded = req.headers['x-forwarded-for'];
     const realIP = req.headers['x-real-ip'];
     const cfConnectingIP = req.headers['cf-connecting-ip']; // Cloudflare
     const trueClientIP = req.headers['true-client-ip']; // Akamai
     
-    // 优先级：CF-Connecting-IP > True-Client-IP > X-Real-IP > X-Forwarded-For > connection.remoteAddress
+    // 优先级：Ali-Real-Client-IP > CF-Connecting-IP > True-Client-IP > X-Real-IP > X-Forwarded-For > connection.remoteAddress
+    if (aliRealClientIP) {
+      return aliRealClientIP;
+    }
+    
     if (cfConnectingIP) {
       return cfConnectingIP;
     }
