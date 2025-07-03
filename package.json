@@ -1,6 +1,6 @@
 {
   "name": "firechat-coze-chat-sdk",
-  "version": "1.2.0",
+  "version": "1.2.2",
   "description": "基于Coze OAuth JWT鉴权的Chat SDK后端服务",
   "main": "server.js",
   "scripts": {
