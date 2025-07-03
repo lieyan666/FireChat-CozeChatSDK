@@ -3,12 +3,20 @@
  * 统一管理应用的日志输出，包括彩色日志、请求日志、错误日志等
  */
 
+const fs = require('fs');
+const path = require('path');
+
 class Logger {
   constructor(config = {}) {
     this.config = {
       level: config.level || 'info',
       enableRequestLogging: config.enable_request_logging !== false,
       enableColors: config.enable_colors !== false,
+      enableFileLogging: config.enable_file_logging || false,
+      logDir: config.log_dir || 'logs',
+      logFilePrefix: config.log_file_prefix || 'log',
+      maxLogSize: config.max_log_size || 10 * 1024 * 1024, // 默认10MB
+      maxLogFiles: config.max_log_files || 100, // 默认保留100个日志文件
       ...config
     };
     
@@ -19,6 +27,149 @@ class Logger {
       info: 2,
       debug: 3
     };
+    
+    // 生成服务启动时间戳（格式：YYYYMMDD_HHMMSS）
+    const now = new Date();
+    this.startupTimestamp = now.getFullYear().toString() +
+      (now.getMonth() + 1).toString().padStart(2, '0') +
+      now.getDate().toString().padStart(2, '0') + '_' +
+      now.getHours().toString().padStart(2, '0') +
+      now.getMinutes().toString().padStart(2, '0') +
+      now.getSeconds().toString().padStart(2, '0');
+    
+    // 当前分片ID
+    this.currentShardId = 1;
+    
+    // 初始化日志目录
+    if (this.config.enableFileLogging) {
+      this.initLogDirectory();
+    }
+  }
+  
+  /**
+   * 初始化日志目录
+   */
+  initLogDirectory() {
+    try {
+      // 确保日志目录存在
+      if (!fs.existsSync(this.config.logDir)) {
+        fs.mkdirSync(this.config.logDir, { recursive: true });
+      }
+      
+      // 生成当前日志文件名：log_YYYYMMDD_HHMMSS_分片ID
+      this.updateLogFilePath();
+      
+      // 检查是否需要轮转日志
+      this.checkLogRotation();
+    } catch (error) {
+      console.error(`初始化日志目录失败: ${error.message}`);
+      this.config.enableFileLogging = false; // 禁用文件日志
+    }
+  }
+  
+  /**
+   * 更新日志文件路径
+   */
+  updateLogFilePath() {
+    const fileName = `${this.config.logFilePrefix}_${this.startupTimestamp}_${this.currentShardId}.log`;
+    this.logFilePath = path.join(this.config.logDir, fileName);
+  }
+  
+  /**
+   * 检查是否需要轮转日志
+   */
+  checkLogRotation() {
+    try {
+      // 如果日志文件存在且超过最大大小，进行轮转
+      if (fs.existsSync(this.logFilePath)) {
+        const stats = fs.statSync(this.logFilePath);
+        if (stats.size >= this.config.maxLogSize) {
+          this.rotateLogFiles();
+        }
+      }
+    } catch (error) {
+      console.error(`检查日志轮转失败: ${error.message}`);
+    }
+  }
+  
+  /**
+   * 轮转日志文件
+   */
+  rotateLogFiles() {
+    try {
+      // 增加分片ID并创建新的日志文件
+      this.currentShardId++;
+      this.updateLogFilePath();
+      
+      // 清理旧的日志文件（如果超过最大数量）
+      this.cleanupOldLogFiles();
+    } catch (error) {
+      console.error(`轮转日志文件失败: ${error.message}`);
+    }
+  }
+  
+  /**
+   * 清理旧的日志文件
+   */
+  cleanupOldLogFiles() {
+    try {
+      // 获取所有日志文件
+      const files = fs.readdirSync(this.config.logDir)
+        .filter(file => file.startsWith(this.config.logFilePrefix) && file.endsWith('.log'))
+        .map(file => {
+          const filePath = path.join(this.config.logDir, file);
+          const stats = fs.statSync(filePath);
+          return {
+            name: file,
+            path: filePath,
+            mtime: stats.mtime
+          };
+        })
+        .sort((a, b) => b.mtime - a.mtime); // 按修改时间降序排列
+      
+      // 如果文件数量超过最大限制，删除最旧的文件
+      if (files.length > this.config.maxLogFiles) {
+        const filesToDelete = files.slice(this.config.maxLogFiles);
+        filesToDelete.forEach(file => {
+          try {
+            fs.unlinkSync(file.path);
+            console.log(`已删除旧日志文件: ${file.name}`);
+          } catch (error) {
+            console.error(`删除日志文件失败 ${file.name}: ${error.message}`);
+          }
+        });
+      }
+    } catch (error) {
+      console.error(`清理旧日志文件失败: ${error.message}`);
+    }
+  }
+  
+  /**
+   * 写入日志到文件
+   */
+  writeToFile(message) {
+    if (!this.config.enableFileLogging) return;
+    
+    try {
+      // 检查是否需要轮转日志
+      this.checkLogRotation();
+      
+      // 添加时间戳和换行符
+      const timestamp = new Date().toISOString();
+      const logEntry = `[${timestamp}] ${message}\n`;
+      
+      // 追加写入日志文件
+      fs.appendFileSync(this.logFilePath, logEntry);
+    } catch (error) {
+      console.error(`写入日志文件失败: ${error.message}`);
+      // 如果写入失败，尝试轮转日志后重试一次
+      try {
+        this.rotateLogFiles();
+        fs.appendFileSync(this.logFilePath, logEntry);
+      } catch (retryError) {
+        console.error(`重试写入日志文件失败: ${retryError.message}`);
+      }
+    }
   }
 
   /**
@@ -188,7 +339,23 @@ class Logger {
       `\x1b[90m${this.formatTime()}\x1b[0m` : 
       this.formatTime();
     
-    console.log(`${timestamp} ${message}`, ...args);
+    // 控制台输出
+    const consoleMessage = `${timestamp} ${message}`;
+    console.log(consoleMessage, ...args);
+    
+    // 文件日志输出（去除颜色代码）
+    if (this.config.enableFileLogging) {
+      // 将参数转换为字符串并去除ANSI颜色代码
+      const argsStr = args.length > 0 ? 
+        ' ' + args.map(arg => 
+          typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+        ).join(' ') : 
+        '';
+      
+      // 去除ANSI颜色代码的完整消息
+      const plainMessage = `${this.formatTime()} ${message.replace(/\x1b\[[0-9;]*m/g, '')}${argsStr}`;
+      this.writeToFile(plainMessage);
+    }
   }
 
   /**
@@ -260,16 +427,28 @@ class Logger {
     const urlColor = this.config.enableColors ? '\x1b[97m' : '';
     const resetColor = this.config.enableColors ? '\x1b[0m' : '';
     
+    let consoleMessage, fileMessage;
+    
     if (statusCode !== null) {
       // 响应日志
       const statusColor = this.getStatusColor(statusCode);
       const durationText = duration !== null ? ` ${duration}ms` : '';
       const durationColor = this.config.enableColors ? '\x1b[90m' : '';
       
-      console.log(`${timestamp} ${ipColor}${ip}${resetColor} ${deviceColor}${deviceType}${resetColor} ${statusColor}${statusCode}${resetColor}${durationColor}${durationText}${resetColor}`);
+      consoleMessage = `${timestamp} ${ipColor}${ip}${resetColor} ${deviceColor}${deviceType}${resetColor} ${statusColor}${statusCode}${resetColor}${durationColor}${durationText}${resetColor}`;
+      fileMessage = `${this.formatTime()} ${ip} ${deviceType} ${statusCode}${durationText}`;
     } else {
       // 请求日志
-      console.log(`${timestamp} ${ipColor}${ip}${resetColor} ${deviceColor}${deviceType}${resetColor} ${methodColor}${method}${resetColor} ${urlColor}${url}${resetColor}`);
+      consoleMessage = `${timestamp} ${ipColor}${ip}${resetColor} ${deviceColor}${deviceType}${resetColor} ${methodColor}${method}${resetColor} ${urlColor}${url}${resetColor}`;
+      fileMessage = `${this.formatTime()} ${ip} ${deviceType} ${method} ${url}`;
+    }
+    
+    // 控制台输出
+    console.log(consoleMessage);
+    
+    // 文件输出
+    if (this.config.enableFileLogging) {
+      this.writeToFile(fileMessage);
     }
   }
 
@@ -290,7 +469,15 @@ class Logger {
     const detailsColor = this.config.enableColors ? '\x1b[90m' : '';
     const resetColor = this.config.enableColors ? '\x1b[0m' : '';
     
-    console.log(`${timestamp} ${ipColor}${ip}${resetColor} ${deviceColor}${deviceType}${resetColor} ${actionColor}${action}${resetColor} ${detailsColor}${details}${resetColor}`);
+    // 控制台输出
+    const consoleMessage = `${timestamp} ${ipColor}${ip}${resetColor} ${deviceColor}${deviceType}${resetColor} ${actionColor}${action}${resetColor} ${detailsColor}${details}${resetColor}`;
+    console.log(consoleMessage);
+    
+    // 文件输出
+    if (this.config.enableFileLogging) {
+      const fileMessage = `${this.formatTime()} ${ip} ${deviceType} ${action} ${details}`;
+      this.writeToFile(fileMessage);
+    }
   }
 
   /**
